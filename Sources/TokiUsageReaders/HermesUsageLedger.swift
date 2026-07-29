@@ -202,11 +202,20 @@ private extension HermesUsageLedger {
             observation: observation,
             previous: previous,
             observedAt: observedAt)
-        let cost = incrementalCost(
+        guard let cost = hermesIncrementalCost(
             observation: observation,
             previous: previous,
             delta: delta,
-            timestamp: timestamp)
+            timestamp: timestamp) else {
+            candidate.baselines[identifier] = currentBaseline
+            try addUnattributed(
+                identifier: identifier,
+                counters: delta,
+                cost: 0,
+                observedAt: observedAt,
+                to: &candidate.unattributed)
+            return true
+        }
         append(
             event(
                 identifier: identifier,
@@ -405,6 +414,8 @@ private extension HermesUsageLedger {
             model: observation.model,
             counters: observation.counters,
             cost: observation.cost,
+            reportedCost: observation.reportedCost,
+            modelPricingCounters: observation.modelPricingCounters,
             projectName: observation.projectName,
             attributionQuality: observation.attributionQuality)
     }
@@ -447,25 +458,6 @@ private extension HermesUsageLedger {
             observation.latestActivityAt,
             startedAt: observation.startedAt,
             observedAt: observedAt) ?? observation.startedAt
-    }
-
-    private func incrementalCost(
-        observation: HermesSessionObservation,
-        previous: HermesUsageLedgerBaseline,
-        delta: HermesTokenCounters,
-        timestamp: Date) -> Double {
-        if observation.cost >= previous.cost {
-            return observation.cost - previous.cost
-        }
-        guard let model = observation.model,
-              let price = modelPrice(for: model, at: timestamp) else {
-            return 0
-        }
-        return price.cost(
-            input: delta.inputTokens,
-            output: delta.outputTokens + delta.reasoningTokens,
-            cacheRead: delta.cacheReadTokens,
-            cacheWrite: delta.cacheWriteTokens)
     }
 
     private func event(
@@ -554,6 +546,16 @@ private extension HermesUsageLedger {
               observation.counters.isValid(),
               observation.cost.isFinite,
               observation.cost >= 0,
+              hermesReportedCostBreakdownIsValid(
+                  observation.reportedCost,
+                  modelPricingCounters: observation.modelPricingCounters,
+                  totalCost: observation.cost),
+              observation.reportedCost != nil
+              || observation.modelPricingCounters == nil
+              || observation.costIsDerivedFromModelPricing,
+              hermesModelPricingCountersAreValid(
+                  observation.modelPricingCounters,
+                  within: observation.counters),
               observation.model?.utf8.count ?? 0 <= 512,
               observation.projectName?.utf8.count ?? 0 <= 512 else {
             throw HermesUsageLedgerError.invalidObservation

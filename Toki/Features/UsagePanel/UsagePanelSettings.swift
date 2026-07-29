@@ -50,10 +50,25 @@ final class UsagePanelSettings: ObservableObject {
         }
     }
 
-    private let defaults: UserDefaults
+    @Published var autoUpdatesModelPricing: Bool {
+        didSet {
+            defaults.set(autoUpdatesModelPricing, forKey: Keys.autoUpdatesModelPricing)
+        }
+    }
 
-    init(defaults: UserDefaults = .standard, readerNames: [String] = UsagePanelSettings.defaultReaderNames) {
+    private let defaults: UserDefaults
+    private let refreshPricingCatalog: (Bool) async -> Bool
+    private var pricingCatalogRefreshTask: Task<Void, Never>?
+    private var pricingRefreshGeneration = 0
+
+    init(
+        defaults: UserDefaults = .standard,
+        readerNames: [String] = UsagePanelSettings.defaultReaderNames,
+        refreshPricingCatalog: @escaping (Bool) async -> Bool = { isEnabled in
+            await RemotePricingCatalogUpdater.shared.refreshIfNeeded(isEnabled: isEnabled)
+        }) {
         self.defaults = defaults
+        self.refreshPricingCatalog = refreshPricingCatalog
 
         let storedInterval = defaults.integer(forKey: Keys.refreshIntervalSeconds)
         storedRefreshIntervalSeconds = Self.normalizedRefreshInterval(storedInterval)
@@ -66,6 +81,8 @@ final class UsagePanelSettings: ObservableObject {
         } else {
             showsZeroSourceRows = defaults.bool(forKey: Keys.showsZeroSourceRows)
         }
+
+        autoUpdatesModelPricing = Self.isAutoUpdatePricingEnabled(defaults: defaults)
     }
 
     func isReaderEnabled(_ name: String) -> Bool {
@@ -82,6 +99,34 @@ final class UsagePanelSettings: ObservableObject {
         showsZeroSourceRows = isEnabled
     }
 
+    func setAutoUpdatesModelPricing(_ isEnabled: Bool) {
+        guard autoUpdatesModelPricing != isEnabled else { return }
+        autoUpdatesModelPricing = isEnabled
+        pricingCatalogRefreshTask?.cancel()
+        pricingRefreshGeneration += 1
+        let generation = pricingRefreshGeneration
+        let refreshPricingCatalog = refreshPricingCatalog
+        pricingCatalogRefreshTask = Task { @MainActor [weak self] in
+            guard !Task.isCancelled else { return }
+            let didChangePricing = await refreshPricingCatalog(isEnabled)
+            guard let self,
+                  !Task.isCancelled,
+                  pricingRefreshGeneration == generation,
+                  autoUpdatesModelPricing == isEnabled else { return }
+            pricingCatalogRefreshTask = nil
+            if didChangePricing {
+                NotificationCenter.default.post(name: .usagePanelModelPricingDidChange, object: nil)
+            }
+        }
+    }
+
+    /// Reads the persisted flag without requiring a settings instance so the
+    /// app-level refresh loop can consult the latest value.
+    nonisolated static func isAutoUpdatePricingEnabled(defaults: UserDefaults = .standard) -> Bool {
+        guard defaults.object(forKey: Keys.autoUpdatesModelPricing) != nil else { return true }
+        return defaults.bool(forKey: Keys.autoUpdatesModelPricing)
+    }
+
     func enabledReaders(from readers: [any TokenReader]) -> [any TokenReader] {
         readers.filter { isReaderEnabled($0.name) }
     }
@@ -91,11 +136,17 @@ final class UsagePanelSettings: ObservableObject {
     }
 }
 
+extension Notification.Name {
+    static let usagePanelModelPricingDidChange =
+        Notification.Name("usagePanelModelPricingDidChange")
+}
+
 private extension UsagePanelSettings {
     enum Keys {
         static let refreshIntervalSeconds = "usagePanel.refreshIntervalSeconds"
         static let enabledReaderNames = "usagePanel.enabledReaderNames"
         static let showsZeroSourceRows = "usagePanel.showsZeroSourceRows"
+        static let autoUpdatesModelPricing = "usagePanel.autoUpdatesModelPricing"
     }
 
     static func normalizedRefreshInterval(_ seconds: Int) -> Int {

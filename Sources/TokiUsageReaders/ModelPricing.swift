@@ -8,6 +8,17 @@ public struct ModelPrice {
     public let cacheReadPerMillion: Double
     public let cacheWritePerMillion: Double
 
+    public init(
+        inputPerMillion: Double,
+        outputPerMillion: Double,
+        cacheReadPerMillion: Double,
+        cacheWritePerMillion: Double) {
+        self.inputPerMillion = inputPerMillion
+        self.outputPerMillion = outputPerMillion
+        self.cacheReadPerMillion = cacheReadPerMillion
+        self.cacheWritePerMillion = cacheWritePerMillion
+    }
+
     public func cost(
         input: Int,
         output: Int,
@@ -28,6 +39,7 @@ public struct ModelPriceLookup {
     public enum Match: Equatable {
         case exact(modelId: String)
         case prefix(prefix: String)
+        case supplement(modelId: String)
         case missing
     }
 
@@ -173,7 +185,7 @@ private func matchedPricingKey(for match: ModelPriceLookup.Match) -> String? {
         modelId
     case let .prefix(prefix):
         prefix
-    case .missing:
+    case .supplement, .missing:
         nil
     }
 }
@@ -184,7 +196,7 @@ private func matchedPricingKey(for match: ModelPriceLookup.Match) -> String? {
 /// computation for usage events must pass the event timestamp so that
 /// scheduled price changes bill each event at its own effective rate.
 public func modelPriceLookup(for modelId: String, at timestamp: Date) -> ModelPriceLookup {
-    let lookup = baseModelPriceLookup(for: modelId)
+    let lookup = baseModelPriceLookup(for: modelId, at: timestamp)
     guard let pricingKey = matchedPricingKey(for: lookup.match),
           let change = scheduledPriceChanges[pricingKey]?
           .last(where: { $0.effectiveFrom <= timestamp }) else {
@@ -211,7 +223,20 @@ public func modelPrice(for modelId: String) -> ModelPrice? {
     modelPriceLookup(for: modelId).price
 }
 
-private func baseModelPriceLookup(for modelId: String) -> ModelPriceLookup {
+/// Returns whether pricing is available for the complete half-open report
+/// interval. Curated prices are timeless; supplemental prices honor catalog
+/// additions and removals at their recorded effective timestamps.
+public func modelPriceIsKnown(
+    for modelId: String,
+    throughout interval: DateInterval) -> Bool {
+    if exactPricingTable[modelId] != nil
+        || sortedPrefixPricingKeys.contains(where: { modelId.hasPrefix($0.key) }) {
+        return true
+    }
+    return ModelPricingSupplement.hasPrice(for: modelId, throughout: interval)
+}
+
+private func baseModelPriceLookup(for modelId: String, at timestamp: Date) -> ModelPriceLookup {
     if let price = exactPricingTable[modelId] {
         return ModelPriceLookup(
             modelId: modelId,
@@ -224,6 +249,13 @@ private func baseModelPriceLookup(for modelId: String) -> ModelPriceLookup {
             modelId: modelId,
             price: match.value,
             match: .prefix(prefix: match.key))
+    }
+
+    if let price = ModelPricingSupplement.price(for: modelId, at: timestamp) {
+        return ModelPriceLookup(
+            modelId: modelId,
+            price: price,
+            match: .supplement(modelId: modelId))
     }
 
     return ModelPriceLookup(

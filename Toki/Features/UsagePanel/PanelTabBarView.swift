@@ -3,60 +3,64 @@ import SwiftUI
 struct PanelTabBarView: View {
     @Binding var activeTab: PanelTab
 
+    @State private var hoveredTab: PanelTab?
+
     var body: some View {
-        Menu {
+        HStack(spacing: 3) {
             ForEach(PanelTab.allCases) { tab in
-                Button {
-                    activeTab = tab
-                } label: {
-                    Label(
-                        tab.title,
-                        systemImage: tab == activeTab ? "checkmark.circle.fill" : tab.systemImage)
-                }
+                tabButton(for: tab)
             }
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 40)
+        .animation(.easeOut(duration: 0.15), value: activeTab)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text("Usage views"))
+    }
+
+    @ViewBuilder
+    private func tabButton(for tab: PanelTab) -> some View {
+        let isSelected = tab == activeTab
+        Button {
+            activeTab = tab
         } label: {
-            HStack(spacing: 10) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(activeTab.accentColor.opacity(0.16))
-                    Image(systemName: activeTab.systemImage)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(activeTab.accentColor)
-                        .accessibilityHidden(true)
-                }
-                .frame(width: 24, height: 24)
-
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("View")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundColor(Color.white.opacity(0.28))
-                    Text(activeTab.title)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.white)
-                }
-
-                Spacer(minLength: 8)
-
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundColor(Color.white.opacity(0.34))
+            HStack(spacing: 5) {
+                Image(systemName: tab.systemImage)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(iconColor(for: tab, isSelected: isSelected))
                     .accessibilityHidden(true)
+                if isSelected {
+                    Text(tab.title)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Color.white.opacity(0.92))
+                        .lineLimit(1)
+                        .fixedSize()
+                }
             }
-            .frame(height: 30)
-            .padding(.horizontal, 10)
+            .padding(.horizontal, isSelected ? 10 : 0)
+            .frame(maxWidth: isSelected ? nil : .infinity)
+            .frame(height: 26)
             .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(Color.white.opacity(0.055)))
-            .overlay(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 0.5))
-            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(backgroundColor(for: tab, isSelected: isSelected)))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 6)
-        .frame(height: 44)
-        .accessibilityLabel(Text("Usage view"))
-        .accessibilityValue(Text(activeTab.title))
+        .onHover { isHovering in
+            hoveredTab = isHovering ? tab : nil
+        }
+        .help(tab.title)
+        .accessibilityLabel(Text(tab.title))
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+    }
+
+    private func iconColor(for tab: PanelTab, isSelected: Bool) -> Color {
+        if isSelected { return tab.accentColor }
+        return hoveredTab == tab ? Color.white.opacity(0.65) : Color.white.opacity(0.38)
+    }
+
+    private func backgroundColor(for tab: PanelTab, isSelected: Bool) -> Color {
+        if isSelected { return tab.accentColor.opacity(0.16) }
+        return hoveredTab == tab ? Color.white.opacity(0.06) : Color.clear
     }
 }

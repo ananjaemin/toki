@@ -92,9 +92,11 @@ struct UsagePanelView: View {
             PanelHeaderView(
                 isLoading: viewModel.isLoading,
                 lastFetchedAt: viewModel.lastFetchedAt,
+                failedReaderNames: viewModel.failedReaderNames,
                 onRefresh: refresh,
                 onSecurityAudit: { isShowingSecurityAudit = true },
-                onSettings: { isShowingSettings = true })
+                onSettings: { isShowingSettings = true },
+                onShowFailedReaders: { activeTab = .sources })
             panelDivider
             PanelDatePickerView(
                 startDate: viewModel.startDate,
@@ -234,6 +236,7 @@ struct UsagePanelView: View {
     }
 
     private func handleRemoteSyncChange() {
+        NotificationCenter.default.post(name: .usagePanelRemoteSyncDidChange, object: nil)
         Task { await viewModel.refreshAfterRemoteSyncChange() }
     }
 

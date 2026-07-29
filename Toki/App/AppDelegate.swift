@@ -11,18 +11,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var panelController = MenuBarPanelController(
         tokenVelocityState: tokenVelocityState) { [weak self] isVisible in
             self?.activityController.setPanelVisible(isVisible)
+            self?.summaryController.setPanelVisible(isVisible)
         }
+
+    private lazy var summaryController = MenuBarUsageSummaryController(
+        statusItemController: statusItemController)
 
     private var pricingCatalogRefreshTask: Task<Void, Never>?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        statusItemController.setup(target: self, action: #selector(togglePanel))
+        statusItemController.setup(target: self, action: #selector(statusItemClicked))
         panelController.setup()
         activityController.start()
+        summaryController.start()
         startPricingCatalogRefreshLoop()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        summaryController.stop()
         panelController.stop()
         activityController.stop()
         statusItemController.stop()
@@ -43,8 +49,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    @objc private func statusItemClicked() {
+        if NSApp.currentEvent?.type == .rightMouseUp {
+            statusItemController.showContextMenu(makeStatusItemMenu())
+            return
+        }
+        togglePanel()
+    }
+
     @objc private func togglePanel() {
         guard let button = statusItemController.button else { return }
         panelController.toggle(relativeTo: button)
+    }
+
+    @objc private func openPanel() {
+        guard let button = statusItemController.button else { return }
+        panelController.show(relativeTo: button)
+    }
+
+    private func makeStatusItemMenu() -> NSMenu {
+        let menu = NSMenu()
+        let openItem = NSMenuItem(
+            title: "Open Usage Panel",
+            action: #selector(openPanel),
+            keyEquivalent: "")
+        openItem.target = self
+        menu.addItem(openItem)
+        menu.addItem(.separator())
+        let quitItem = NSMenuItem(
+            title: "Quit Toki",
+            action: #selector(NSApplication.terminate(_:)),
+            keyEquivalent: "q")
+        menu.addItem(quitItem)
+        return menu
     }
 }

@@ -2,6 +2,11 @@ import SwiftUI
 
 private let skeletonRowWidths: [CGFloat] = [88, 72, 96, 64, 80]
 
+func panelModelTokenShare(modelTokens: Int, reportTotalTokens: Int) -> Double {
+    guard modelTokens > 0, reportTotalTokens > 0 else { return 0 }
+    return min(1, Double(modelTokens) / Double(reportTotalTokens))
+}
+
 struct PanelByModelView: View {
     let usage: UsageData
     let isLoading: Bool
@@ -25,7 +30,7 @@ struct PanelByModelView: View {
                 VStack(spacing: 0) {
                     if !usage.perModel.isEmpty {
                         ForEach(usage.perModel, id: \.id) { stat in
-                            ModelStatRowView(stat: stat)
+                            ModelStatRowView(stat: stat, share: tokenShare(for: stat))
                                 .equatable()
                         }
                     }
@@ -50,6 +55,12 @@ struct PanelByModelView: View {
                 .padding(.vertical, 6)
             }
         }
+    }
+
+    private func tokenShare(for stat: ModelStat) -> Double {
+        panelModelTokenShare(
+            modelTokens: stat.totalTokens,
+            reportTotalTokens: usage.totalTokens)
     }
 
     private func skeletonModelRow(labelWidth: CGFloat) -> some View {

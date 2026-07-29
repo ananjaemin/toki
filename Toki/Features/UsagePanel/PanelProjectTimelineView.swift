@@ -1,17 +1,36 @@
 import SwiftUI
 
+enum PanelProjectExpansionPolicy {
+    static func shouldShowCollapseControl(
+        isExpanded: Bool,
+        collapsedHiddenProjectCount: Int) -> Bool {
+        isExpanded && collapsedHiddenProjectCount > 0
+    }
+}
+
 struct PanelProjectTimelineView: View {
     private static let visibleSessionLimit = 8
 
     let usage: UsageData
     let isLoading: Bool
 
-    private var breakdown: ProjectTimelineBreakdown {
+    @State private var isShowingAllProjects = false
+    @State private var isShowingAllSessions = false
+
+    private var summaryBreakdown: ProjectTimelineBreakdown {
         .derive(from: usage)
     }
 
+    private var listBreakdown: ProjectTimelineBreakdown {
+        .derive(
+            from: usage,
+            visibleLimit: isShowingAllProjects
+                ? usage.projectStats.count
+                : ProjectTimelineBreakdown.visibleProjectLimit)
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
+        LazyVStack(spacing: 0) {
             if isLoading {
                 PanelProjectTimelineSummaryView(rows: loadingSummaryRows, isLoading: true)
                 PanelSectionCaption(title: "Top Projects")
@@ -45,6 +64,17 @@ struct PanelProjectTimelineView: View {
                     if let otherProjectsSummary {
                         PanelProjectUsageSummaryRowView(summary: otherProjectsSummary)
                     }
+                    if listBreakdown.hiddenProjectCount > 0 {
+                        PanelShowMoreButton(title: "Show \(listBreakdown.hiddenProjectCount) more projects") {
+                            isShowingAllProjects = true
+                        }
+                    } else if PanelProjectExpansionPolicy.shouldShowCollapseControl(
+                        isExpanded: isShowingAllProjects,
+                        collapsedHiddenProjectCount: summaryBreakdown.hiddenProjectCount) {
+                        PanelShowMoreButton(title: "Show fewer projects") {
+                            isShowingAllProjects = false
+                        }
+                    }
                     if let untrackedUsageSummary {
                         PanelProjectUsageSummaryRowView(summary: untrackedUsageSummary)
                     }
@@ -52,9 +82,18 @@ struct PanelProjectTimelineView: View {
 
                 if !usage.sessionStats.isEmpty {
                     PanelSectionCaption(title: "Sessions")
-                    ForEach(usage.sessionStats.prefix(Self.visibleSessionLimit)) { session in
+                    ForEach(usage.sessionStats.prefix(visibleSessionCount)) { session in
                         PanelSessionUsageRowView(session: session)
                             .equatable()
+                    }
+                    if hiddenSessionCount > 0 {
+                        PanelShowMoreButton(title: "Show \(hiddenSessionCount) more sessions") {
+                            isShowingAllSessions = true
+                        }
+                    } else if isShowingAllSessions, usage.sessionStats.count > Self.visibleSessionLimit {
+                        PanelShowMoreButton(title: "Show fewer sessions") {
+                            isShowingAllSessions = false
+                        }
                     }
                 }
             }
@@ -103,30 +142,38 @@ struct PanelProjectTimelineView: View {
     }
 
     private var visibleProjects: [ProjectUsageStat] {
-        breakdown.visibleProjects
+        listBreakdown.visibleProjects
+    }
+
+    private var visibleSessionCount: Int {
+        isShowingAllSessions ? usage.sessionStats.count : Self.visibleSessionLimit
+    }
+
+    private var hiddenSessionCount: Int {
+        max(0, usage.sessionStats.count - visibleSessionCount)
     }
 
     private var projectTotalLabel: String {
         // Same "attributed" basis as `UsageData.attributedCost`
         // (project rows whose quality is not .unknown), so this token total
         // and the Attributed % below describe the same set of rows.
-        let total = breakdown.visibleProjects.reduce(0) { $0 + $1.totalTokens }
-            + (breakdown.otherProjects?.totalTokens ?? 0)
+        let total = summaryBreakdown.visibleProjects.reduce(0) { $0 + $1.totalTokens }
+            + (summaryBreakdown.otherProjects?.totalTokens ?? 0)
         return total > 0 ? total.formattedTokens() : "-"
     }
 
     private var otherProjectsLabel: String {
-        guard let total = breakdown.otherProjects?.totalTokens else { return "-" }
+        guard let total = summaryBreakdown.otherProjects?.totalTokens else { return "-" }
         return total.formattedTokens()
     }
 
     private var otherProjectsSummary: ProjectUsageSummary? {
-        guard let values = breakdown.otherProjects else { return nil }
+        guard let values = listBreakdown.otherProjects else { return nil }
         return ProjectUsageSummary(from: values, accent: Color.white.opacity(0.5))
     }
 
     private var untrackedUsageSummary: ProjectUsageSummary? {
-        guard let values = breakdown.untrackedUsage else { return nil }
+        guard let values = listBreakdown.untrackedUsage else { return nil }
         return ProjectUsageSummary(from: values, accent: Color.white.opacity(0.35))
     }
 

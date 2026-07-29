@@ -17,7 +17,9 @@ final class UsagePanelSettingsTests: XCTestCase {
         XCTAssertEqual(settings.enabledReaderNames, ["Codex": true, "Cursor": true])
         XCTAssertFalse(settings.showsZeroSourceRows)
         XCTAssertTrue(settings.autoUpdatesModelPricing)
+        XCTAssertFalse(settings.showsMenuBarCost)
         XCTAssertTrue(UsagePanelSettings.isAutoUpdatePricingEnabled(defaults: defaults))
+        XCTAssertFalse(UsagePanelSettings.isMenuBarCostEnabled(defaults: defaults))
     }
 
     func test_persistsChanges() {
@@ -33,6 +35,7 @@ final class UsagePanelSettingsTests: XCTestCase {
         settings.setReader("Cursor", isEnabled: false)
         settings.showsZeroSourceRows = true
         settings.setAutoUpdatesModelPricing(false)
+        settings.setShowsMenuBarCost(true)
 
         let reloaded = UsagePanelSettings(defaults: defaults, readerNames: ["Codex", "Cursor"])
 
@@ -41,7 +44,9 @@ final class UsagePanelSettingsTests: XCTestCase {
         XCTAssertFalse(reloaded.isReaderEnabled("Cursor"))
         XCTAssertTrue(reloaded.showsZeroSourceRows)
         XCTAssertFalse(reloaded.autoUpdatesModelPricing)
+        XCTAssertTrue(reloaded.showsMenuBarCost)
         XCTAssertFalse(UsagePanelSettings.isAutoUpdatePricingEnabled(defaults: defaults))
+        XCTAssertTrue(UsagePanelSettings.isMenuBarCostEnabled(defaults: defaults))
     }
 
     func test_normalizesUnsupportedRefreshInterval() {
@@ -53,6 +58,44 @@ final class UsagePanelSettingsTests: XCTestCase {
         settings.refreshIntervalSeconds = 999
 
         XCTAssertEqual(settings.refreshIntervalSeconds, 180)
+    }
+
+    func test_refreshIntervalChangePostsNotificationAndUpdatesStaticValue() {
+        let (suiteName, defaults) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        var notificationCount = 0
+        let observer = NotificationCenter.default.addObserver(
+            forName: .usagePanelRefreshIntervalDidChange,
+            object: nil,
+            queue: nil) { _ in
+                notificationCount += 1
+            }
+        defer { NotificationCenter.default.removeObserver(observer) }
+        let settings = UsagePanelSettings(defaults: defaults, readerNames: ["Codex"])
+
+        settings.refreshIntervalSeconds = 60
+
+        XCTAssertEqual(notificationCount, 1)
+        XCTAssertEqual(UsagePanelSettings.currentRefreshIntervalSeconds(defaults: defaults), 60)
+    }
+
+    func test_readerChangePostsNotificationOnlyWhenValueChanges() {
+        let (suiteName, defaults) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        var notificationCount = 0
+        let observer = NotificationCenter.default.addObserver(
+            forName: .usagePanelReaderSettingsDidChange,
+            object: nil,
+            queue: nil) { _ in
+                notificationCount += 1
+            }
+        defer { NotificationCenter.default.removeObserver(observer) }
+        let settings = UsagePanelSettings(defaults: defaults, readerNames: ["Codex"])
+
+        settings.setReader("Codex", isEnabled: false)
+        settings.setReader("Codex", isEnabled: false)
+
+        XCTAssertEqual(notificationCount, 1)
     }
 
     func test_autoPricingSetterRefreshesCatalogAndPostsChangeNotification() async {

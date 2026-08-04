@@ -32,12 +32,16 @@ public struct HermesReader: TokenReader {
     }
 
     public func readUsage(from startDate: Date, to endDate: Date) async throws -> RawTokenUsage {
-        if let database = try openDatabase() {
-            defer { sqlite3_close(database) }
-            let observations = try readSessionObservations(from: database)
+        let modelPricingTimestamp = now()
+        if let observations = try readDatabaseSnapshot({ database in
+            try readSessionObservations(
+                from: database,
+                modelPricingTimestamp: modelPricingTimestamp)
+        }) {
+            let observedAt = max(modelPricingTimestamp, now())
             try await usageLedger.refresh(
                 observations: observations,
-                observedAt: now())
+                observedAt: observedAt)
         }
 
         let events = try await usageLedger.events(from: startDate, to: endDate)
@@ -45,33 +49,44 @@ public struct HermesReader: TokenReader {
     }
 
     public func coverageStatus() throws -> HermesUsageCoverageStatus {
-        guard let database = try openDatabase() else {
-            return HermesUsageCoverageStatus(unmeteredMainAPICallCount: 0)
-        }
-        defer { sqlite3_close(database) }
-        return try readSessionModelUsage(from: database).coverage
+        let modelPricingTimestamp = now()
+        return try readDatabaseSnapshot { database in
+            try readSessionModelUsage(
+                from: database,
+                modelPricingTimestamp: modelPricingTimestamp).coverage
+        } ?? HermesUsageCoverageStatus(unmeteredMainAPICallCount: 0)
     }
 
-    private func openDatabase() throws -> OpaquePointer? {
-        guard FileManager.default.fileExists(atPath: dbPath) else { return nil }
-
-        var database: OpaquePointer?
-        guard sqlite3_open_v2(dbPath, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
-            let error = HermesSQLiteError(operation: "open", database: database)
-            sqlite3_close(database)
-            throw error
+    private func readDatabaseSnapshot<Value>(
+        _ read: (OpaquePointer) throws -> Value) throws -> Value? {
+        for attempt in 0..<2 {
+            guard let connection = try HermesSQLiteConnection.open(atPath: dbPath) else {
+                return nil
+            }
+            let value = try read(connection.database)
+            if connection.isSourceStateCurrent {
+                return value
+            }
+            guard attempt == 0 else {
+                throw HermesSQLiteError(
+                    operation: "read snapshot",
+                    message: "database changed during read",
+                    code: SQLITE_BUSY)
+            }
         }
-
-        sqlite3_busy_timeout(database, 2000)
-        return database
+        return nil
     }
 
-    private func readSessionObservations(from database: OpaquePointer) throws -> [HermesSessionObservation] {
+    private func readSessionObservations(
+        from database: OpaquePointer,
+        modelPricingTimestamp: Date) throws -> [HermesSessionObservation] {
         guard sqlite3_exec(database, "BEGIN DEFERRED TRANSACTION", nil, nil, nil) == SQLITE_OK else {
             throw HermesSQLiteError(operation: "begin read transaction", database: database)
         }
         do {
-            let observations = try readSessionObservationsInSnapshot(from: database)
+            let observations = try readSessionObservationsInSnapshot(
+                from: database,
+                modelPricingTimestamp: modelPricingTimestamp)
             guard sqlite3_exec(database, "COMMIT", nil, nil, nil) == SQLITE_OK else {
                 throw HermesSQLiteError(operation: "commit read transaction", database: database)
             }
@@ -83,8 +98,11 @@ public struct HermesReader: TokenReader {
     }
 
     private func readSessionObservationsInSnapshot(
-        from database: OpaquePointer) throws -> [HermesSessionObservation] {
-        let modelUsageBySessionID = try readSessionModelUsage(from: database).usageBySessionID
+        from database: OpaquePointer,
+        modelPricingTimestamp: Date) throws -> [HermesSessionObservation] {
+        let modelUsageBySessionID = try readSessionModelUsage(
+            from: database,
+            modelPricingTimestamp: modelPricingTimestamp).usageBySessionID
         let statement = try preparedUsageStatement(in: database)
         defer { sqlite3_finalize(statement) }
 
@@ -148,7 +166,8 @@ public struct HermesReader: TokenReader {
 
     // swiftlint:disable:next function_body_length
     private func readSessionModelUsage(
-        from database: OpaquePointer) throws -> HermesSessionModelUsageReadResult {
+        from database: OpaquePointer,
+        modelPricingTimestamp: Date) throws -> HermesSessionModelUsageReadResult {
         guard try tableExists("session_model_usage", in: database) else { return .empty }
         let requiredColumns: Set = [
             "session_id",
@@ -211,13 +230,14 @@ public struct HermesReader: TokenReader {
                 counters: counters,
                 estimatedCost: max(0, sqlite3_column_double(statement, 9)),
                 actualCost: max(0, sqlite3_column_double(statement, 10)),
-                timestamp: nil)
+                timestamp: modelPricingTimestamp)
             usageBySessionID[sessionID, default: []].append(
                 HermesSessionModelUsage(
                     model: model,
                     counters: counters,
                     cost: resolvedCost.value,
-                    costIsDerivedFromModelPricing: resolvedCost.isDerivedFromModelPricing))
+                    costIsDerivedFromModelPricing: resolvedCost.isDerivedFromModelPricing,
+                    modelPricingTimestamp: resolvedCost.modelPricingTimestamp))
             let hasReportedTokens = counters.inputTokens > 0
                 || counters.outputTokens > 0
                 || counters.cacheReadTokens > 0
@@ -294,7 +314,6 @@ public struct HermesReader: TokenReader {
         events: [HermesUsageLedgerEvent],
         clippingEndDate: Date) -> RawTokenUsage {
         var result = RawTokenUsage()
-        var activityEvents: [ActivityTimeEvent<String>] = []
 
         for event in events {
             let counters = event.counters
@@ -305,17 +324,10 @@ public struct HermesReader: TokenReader {
             result.reasoningTokens += counters.reasoningTokens
             result.cost += event.cost
 
-            if let model = event.model {
-                result.perModel[model, default: PerModelUsage()].totalTokens += counters.totalTokens
-                result.perModel[model, default: PerModelUsage()].cost += event.cost
-                result.perModel[model, default: PerModelUsage()].sources.insert(name)
-            }
-
-            activityEvents.append(
-                ActivityTimeEvent(
-                    streamID: event.sessionIdentifier,
-                    timestamp: event.timestamp,
-                    key: event.model))
+            let modelGroupingKey = event.model ?? UsageModelGrouping.mixedOrUnattributedKey
+            result.perModel[modelGroupingKey, default: PerModelUsage()].totalTokens += counters.totalTokens
+            result.perModel[modelGroupingKey, default: PerModelUsage()].cost += event.cost
+            result.perModel[modelGroupingKey, default: PerModelUsage()].sources.insert(name)
 
             result.recordTokenEvent(
                 timestamp: event.timestamp,
@@ -333,8 +345,33 @@ public struct HermesReader: TokenReader {
                     quality: event.attributionQuality))
         }
 
+        let activityEvents = Self.activityEvents(from: events)
         result.mergeActivityEvents(activityEvents, source: name, clippingEndDate: clippingEndDate)
         return result
+    }
+
+    private static func activityEvents(
+        from events: [HermesUsageLedgerEvent]) -> [ActivityTimeEvent<String>] {
+        Dictionary(grouping: events.filter { $0.counters.totalTokens > 0 }) { event in
+            HermesActivityEventIdentity(
+                streamID: event.sessionIdentifier,
+                timestamp: event.timestamp)
+        }
+        .map { identity, groupedEvents in
+            let models = Set(groupedEvents.map(\.model))
+            let model = models.count == 1
+                ? models.first ?? nil
+                : UsageModelGrouping.mixedOrUnattributedKey
+            return ActivityTimeEvent(
+                streamID: identity.streamID,
+                timestamp: identity.timestamp,
+                key: model)
+        }
+        .sorted { lhs, rhs in
+            if lhs.timestamp != rhs.timestamp { return lhs.timestamp < rhs.timestamp }
+            if lhs.streamID != rhs.streamID { return lhs.streamID < rhs.streamID }
+            return (lhs.key ?? "") < (rhs.key ?? "")
+        }
     }
 }
 
@@ -347,6 +384,11 @@ private struct HermesSessionModelUsageReadResult {
 
     let usageBySessionID: [String: [HermesSessionModelUsage]]
     let coverage: HermesUsageCoverageStatus
+}
+
+private struct HermesActivityEventIdentity: Hashable {
+    let streamID: String
+    let timestamp: Date
 }
 
 private struct HermesSessionUsageRow {
@@ -362,6 +404,7 @@ private struct HermesSessionUsageRow {
     let reasoningTokens: Int
     let cost: Double
     let costIsDerivedFromModelPricing: Bool
+    let modelPricingTimestamp: Date?
     let projectName: String?
     let attributionQuality: AttributionQuality
 
@@ -392,6 +435,7 @@ private struct HermesSessionUsageRow {
             timestamp: startedAt)
         cost = resolvedCost.value
         costIsDerivedFromModelPricing = resolvedCost.isDerivedFromModelPricing
+        modelPricingTimestamp = resolvedCost.modelPricingTimestamp
 
         if sqlite3_column_type(statement, 12) == SQLITE_NULL {
             earliestActivityAt = nil
@@ -425,26 +469,9 @@ private struct HermesSessionUsageRow {
                 reasoningTokens: reasoningTokens),
             cost: cost,
             costIsDerivedFromModelPricing: costIsDerivedFromModelPricing,
+            modelPricingTimestamp: modelPricingTimestamp,
             projectName: projectName,
             attributionQuality: attributionQuality)
-    }
-}
-
-private struct HermesSQLiteError: LocalizedError {
-    let operation: String
-    let message: String
-
-    init(operation: String, database: OpaquePointer?) {
-        self.operation = operation
-        if let database, let errorMessage = sqlite3_errmsg(database) {
-            message = String(cString: errorMessage)
-        } else {
-            message = "unknown SQLite error"
-        }
-    }
-
-    var errorDescription: String? {
-        "Hermes SQLite \(operation) failed: \(message)"
     }
 }
 

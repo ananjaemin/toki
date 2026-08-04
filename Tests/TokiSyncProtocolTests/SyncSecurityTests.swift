@@ -104,6 +104,25 @@ final class SyncSecurityTests: XCTestCase {
         XCTAssertEqual(summary.syncIntervalSeconds, TokiSyncLimits.defaultSyncIntervalSeconds)
     }
 
+    func test_v1TokenEventsDefaultMissingCost() throws {
+        let timestamp = Date(timeIntervalSince1970: 1_750_000_000)
+        let data = try TokiSyncCoding.makeEncoder().encode(LegacyRemoteTokenEvent(
+            timestamp: timestamp,
+            source: "Codex",
+            model: "gpt-5",
+            inputTokens: 10,
+            outputTokens: 3,
+            cacheReadTokens: 2,
+            cacheWriteTokens: 0,
+            reasoningTokens: 1))
+
+        let event = try TokiSyncCoding.makeDecoder().decode(RemoteTokenEvent.self, from: data)
+
+        XCTAssertEqual(event.timestamp, timestamp)
+        XCTAssertEqual(event.totalTokens, 16)
+        XCTAssertNil(event.cost)
+    }
+
     func test_v1PairingBundleDefaultsMissingRetentionAndSyncInterval() throws {
         let hubURL = try XCTUnwrap(URL(string: "https://hub.example.test"))
         let data = try TokiSyncCoding.makeEncoder().encode(LegacyAgentPairingBundle(
@@ -122,6 +141,50 @@ final class SyncSecurityTests: XCTestCase {
     }
 }
 
+extension SyncSecurityTests {
+    func test_v1SnapshotsKeepCostEventsBackwardCompatible() throws {
+        let generatedAt = Date(timeIntervalSince1970: 1_750_000_000)
+        let device = RemoteDeviceDescriptor(id: "device-1", name: "ubuntu", platform: "linux")
+        let legacySnapshot = LegacyRemoteUsageSnapshot(
+            schemaVersion: TokiSyncProtocolVersion.current,
+            device: device,
+            generatedAt: generatedAt,
+            coveredFrom: generatedAt.addingTimeInterval(-3600),
+            coveredTo: generatedAt.addingTimeInterval(1),
+            tokenEvents: [],
+            activityEvents: [])
+        let encoder = TokiSyncCoding.makeEncoder()
+        let decoder = TokiSyncCoding.makeDecoder()
+
+        let decodedCurrentSnapshot = try decoder.decode(
+            RemoteUsageSnapshot.self,
+            from: encoder.encode(legacySnapshot))
+        XCTAssertNil(decodedCurrentSnapshot.costEvents)
+
+        let currentSnapshot = RemoteUsageSnapshot(
+            device: device,
+            generatedAt: generatedAt,
+            coveredFrom: generatedAt.addingTimeInterval(-3600),
+            coveredTo: generatedAt.addingTimeInterval(1),
+            tokenEvents: [],
+            costEvents: [
+                RemoteCostEvent(
+                    timestamp: generatedAt.addingTimeInterval(-60),
+                    source: "Hermes",
+                    model: nil,
+                    cost: 1.25),
+            ],
+            activityEvents: [])
+        let decodedLegacySnapshot = try decoder.decode(
+            LegacyRemoteUsageSnapshot.self,
+            from: encoder.encode(currentSnapshot))
+
+        XCTAssertEqual(decodedLegacySnapshot.schemaVersion, TokiSyncProtocolVersion.current)
+        XCTAssertTrue(decodedLegacySnapshot.tokenEvents.isEmpty)
+        XCTAssertNoThrow(try RemoteUsageSnapshotValidator.validate(currentSnapshot, now: generatedAt))
+    }
+}
+
 private struct OversizedEncodable: Encodable {
     let value: String
 }
@@ -136,6 +199,27 @@ private struct LegacyRemoteDeviceSummary: Encodable {
     let createdAt: Date
     let lastSeenAt: Date?
     let latestSequence: UInt64?
+}
+
+private struct LegacyRemoteTokenEvent: Codable {
+    let timestamp: Date
+    let source: String
+    let model: String?
+    let inputTokens: Int
+    let outputTokens: Int
+    let cacheReadTokens: Int
+    let cacheWriteTokens: Int
+    let reasoningTokens: Int
+}
+
+private struct LegacyRemoteUsageSnapshot: Codable {
+    let schemaVersion: Int
+    let device: RemoteDeviceDescriptor
+    let generatedAt: Date
+    let coveredFrom: Date
+    let coveredTo: Date
+    let tokenEvents: [LegacyRemoteTokenEvent]
+    let activityEvents: [RemoteActivityEvent]
 }
 
 private struct LegacyAgentPairingBundle: Encodable {

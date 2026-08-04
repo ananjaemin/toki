@@ -85,15 +85,19 @@ struct AgentSnapshotBuilder: AgentSnapshotBuilding {
             key: configuration.encryptionKey)
         let tokenReplacementCoverages = readerUsages.flatMap(\.usage.tokenReplacementCoverages)
 
-        let tokenEvents = readerUsages
+        let usageEvents = readerUsages
             .flatMap(\.usage.tokenEvents)
             .filter { event in
                 event.timestamp >= coveredFrom
                     && event.timestamp < coveredTo
                     && !tokenReplacementCoverages.contains { $0.replaces(event) }
             }
+        let tokenEvents = usageEvents
             .compactMap(remoteTokenEvent)
             .sorted(by: tokenEventSort)
+        let costEvents = usageEvents
+            .compactMap(remoteCostEvent)
+            .sorted(by: costEventSort)
 
         let activityEvents = readerUsages
             .flatMap { readerUsage in
@@ -120,6 +124,7 @@ struct AgentSnapshotBuilder: AgentSnapshotBuilding {
             coveredFrom: coveredFrom,
             coveredTo: coveredTo,
             tokenEvents: tokenEvents,
+            costEvents: costEvents.isEmpty ? nil : costEvents,
             activityEvents: activityEvents)
     }
 
@@ -129,6 +134,7 @@ struct AgentSnapshotBuilder: AgentSnapshotBuilding {
             coveredFrom: snapshot.coveredFrom,
             coveredTo: snapshot.coveredTo,
             tokenEvents: snapshot.tokenEvents,
+            costEvents: snapshot.costEvents,
             activityEvents: snapshot.activityEvents)
         return try SnapshotCipher.digest(TokiSyncCoding.makeEncoder().encode(content))
     }
@@ -411,7 +417,15 @@ private extension AgentSnapshotBuilder {
         if lhs.outputTokens != rhs.outputTokens { return lhs.outputTokens < rhs.outputTokens }
         if lhs.cacheReadTokens != rhs.cacheReadTokens { return lhs.cacheReadTokens < rhs.cacheReadTokens }
         if lhs.cacheWriteTokens != rhs.cacheWriteTokens { return lhs.cacheWriteTokens < rhs.cacheWriteTokens }
-        return lhs.reasoningTokens < rhs.reasoningTokens
+        if lhs.reasoningTokens != rhs.reasoningTokens { return lhs.reasoningTokens < rhs.reasoningTokens }
+        return (lhs.cost ?? -1) < (rhs.cost ?? -1)
+    }
+
+    private func costEventSort(_ lhs: RemoteCostEvent, _ rhs: RemoteCostEvent) -> Bool {
+        if lhs.timestamp != rhs.timestamp { return lhs.timestamp < rhs.timestamp }
+        if lhs.source != rhs.source { return lhs.source < rhs.source }
+        if lhs.model != rhs.model { return (lhs.model ?? "") < (rhs.model ?? "") }
+        return lhs.cost < rhs.cost
     }
 
     private func activityEventSort(_ lhs: RemoteActivityEvent, _ rhs: RemoteActivityEvent) -> Bool {
@@ -424,6 +438,7 @@ private extension AgentSnapshotBuilder {
 
     private func remoteModel(_ model: String?) -> String? {
         guard let model,
+              model != UsageModelGrouping.mixedOrUnattributedKey,
               TokiSyncValidation.isSafeDisplayText(
                   model,
                   maximumLength: RemoteUsageSnapshotValidator.maximumModelLength) else {
@@ -441,7 +456,10 @@ private extension AgentSnapshotBuilder {
             event.reasoningTokens,
         ]
         let validRange = 0...RemoteUsageSnapshotValidator.maximumTokenCountPerBucket
+        let validCostRange = 0...RemoteUsageSnapshotValidator.maximumCostPerEvent
         guard counts.allSatisfy(validRange.contains),
+              event.cost.isFinite,
+              validCostRange.contains(event.cost),
               counts.contains(where: { $0 > 0 }) else {
             return nil
         }
@@ -453,7 +471,30 @@ private extension AgentSnapshotBuilder {
             outputTokens: event.outputTokens,
             cacheReadTokens: event.cacheReadTokens,
             cacheWriteTokens: event.cacheWriteTokens,
-            reasoningTokens: event.reasoningTokens)
+            reasoningTokens: event.reasoningTokens,
+            cost: event.cost > 0 ? event.cost : nil)
+    }
+
+    private func remoteCostEvent(_ event: TokenUsageEvent) -> RemoteCostEvent? {
+        let counts = [
+            event.inputTokens,
+            event.outputTokens,
+            event.cacheReadTokens,
+            event.cacheWriteTokens,
+            event.reasoningTokens,
+        ]
+        let validCostRange = 0...RemoteUsageSnapshotValidator.maximumCostPerEvent
+        guard counts.allSatisfy({ $0 == 0 }),
+              event.cost.isFinite,
+              event.cost > 0,
+              validCostRange.contains(event.cost) else {
+            return nil
+        }
+        return RemoteCostEvent(
+            timestamp: event.timestamp,
+            source: event.source,
+            model: remoteModel(event.model),
+            cost: event.cost)
     }
 
     private var platformName: String {
@@ -478,6 +519,7 @@ private struct AgentSnapshotContent: Encodable {
     let coveredFrom: Date
     let coveredTo: Date
     let tokenEvents: [RemoteTokenEvent]
+    let costEvents: [RemoteCostEvent]?
     let activityEvents: [RemoteActivityEvent]
 }
 

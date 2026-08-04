@@ -30,6 +30,7 @@ public struct RemoteTokenEvent: Codable, Equatable, Sendable {
     public let cacheReadTokens: Int
     public let cacheWriteTokens: Int
     public let reasoningTokens: Int
+    public let cost: Double?
 
     public init(
         timestamp: Date,
@@ -39,7 +40,8 @@ public struct RemoteTokenEvent: Codable, Equatable, Sendable {
         outputTokens: Int,
         cacheReadTokens: Int,
         cacheWriteTokens: Int,
-        reasoningTokens: Int) {
+        reasoningTokens: Int,
+        cost: Double? = nil) {
         self.timestamp = timestamp
         self.source = source
         self.model = model
@@ -48,11 +50,30 @@ public struct RemoteTokenEvent: Codable, Equatable, Sendable {
         self.cacheReadTokens = max(0, cacheReadTokens)
         self.cacheWriteTokens = max(0, cacheWriteTokens)
         self.reasoningTokens = max(0, reasoningTokens)
+        self.cost = cost
     }
 
     public var totalTokens: Int {
         [inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, reasoningTokens]
             .reduce(0, saturatingTokenSum)
+    }
+}
+
+public struct RemoteCostEvent: Codable, Equatable, Sendable {
+    public let timestamp: Date
+    public let source: String
+    public let model: String?
+    public let cost: Double
+
+    public init(
+        timestamp: Date,
+        source: String,
+        model: String?,
+        cost: Double) {
+        self.timestamp = timestamp
+        self.source = source
+        self.model = model
+        self.cost = cost
     }
 }
 
@@ -92,6 +113,7 @@ public struct RemoteUsageSnapshot: Codable, Equatable, Sendable {
     public let coveredFrom: Date
     public let coveredTo: Date
     public let tokenEvents: [RemoteTokenEvent]
+    public let costEvents: [RemoteCostEvent]?
     public let activityEvents: [RemoteActivityEvent]
 
     public init(
@@ -101,6 +123,7 @@ public struct RemoteUsageSnapshot: Codable, Equatable, Sendable {
         coveredFrom: Date,
         coveredTo: Date,
         tokenEvents: [RemoteTokenEvent],
+        costEvents: [RemoteCostEvent]? = nil,
         activityEvents: [RemoteActivityEvent]) {
         self.schemaVersion = schemaVersion
         self.device = device
@@ -108,6 +131,7 @@ public struct RemoteUsageSnapshot: Codable, Equatable, Sendable {
         self.coveredFrom = coveredFrom
         self.coveredTo = coveredTo
         self.tokenEvents = tokenEvents
+        self.costEvents = costEvents
         self.activityEvents = activityEvents
     }
 }

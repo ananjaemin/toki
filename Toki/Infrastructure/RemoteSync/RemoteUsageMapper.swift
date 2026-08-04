@@ -31,6 +31,12 @@ struct RemoteUsageMapper {
                 to: &sourceUsage)
             usageBySource[event.source] = sourceUsage
         }
+        appendCostEvents(
+            from: snapshot,
+            startDate: startDate,
+            endDate: endDate,
+            usage: &usage,
+            usageBySource: &usageBySource)
 
         usage.activityEvents.append(contentsOf: mappedActivityEvents(
             from: snapshot,
@@ -95,11 +101,10 @@ struct RemoteUsageMapper {
         result.cacheWriteTokens += event.cacheWriteTokens
         result.reasoningTokens += event.reasoningTokens
         result.cost += cost
-        if let model {
-            result.perModel[model, default: PerModelUsage()].totalTokens += event.totalTokens
-            result.perModel[model, default: PerModelUsage()].cost += cost
-            result.perModel[model, default: PerModelUsage()].sources.insert(source)
-        }
+        let modelGroupingKey = model ?? UsageModelGrouping.mixedOrUnattributedKey
+        result.perModel[modelGroupingKey, default: PerModelUsage()].totalTokens += event.totalTokens
+        result.perModel[modelGroupingKey, default: PerModelUsage()].cost += cost
+        result.perModel[modelGroupingKey, default: PerModelUsage()].sources.insert(source)
 
         result.recordTokenEvent(
             timestamp: event.timestamp,
@@ -114,12 +119,34 @@ struct RemoteUsageMapper {
     }
 
     private func tokenCost(for event: RemoteTokenEvent, model: String?) -> Double {
+        if let cost = event.cost, cost.isFinite, cost >= 0 {
+            return cost
+        }
         guard let model, let price = modelPrice(for: model, at: event.timestamp) else { return 0 }
         return price.cost(
             input: event.inputTokens,
             output: event.outputTokens + event.reasoningTokens,
             cacheRead: event.cacheReadTokens,
             cacheWrite: event.cacheWriteTokens)
+    }
+
+    private func appendCostEvent(
+        _ event: RemoteCostEvent,
+        model: String?,
+        source: String,
+        to result: inout RawTokenUsage) {
+        result.cost += event.cost
+        let modelGroupingKey = model ?? UsageModelGrouping.mixedOrUnattributedKey
+        result.perModel[modelGroupingKey, default: PerModelUsage()].cost += event.cost
+        result.perModel[modelGroupingKey, default: PerModelUsage()].sources.insert(source)
+
+        result.recordTokenEvent(
+            timestamp: event.timestamp,
+            source: source,
+            model: model,
+            inputTokens: 0,
+            outputTokens: 0,
+            cost: event.cost)
     }
 
     func mappedActivityEventsBySource(
@@ -131,7 +158,7 @@ struct RemoteUsageMapper {
             eventsBySource[event.source, default: []].append(ActivityTimeEvent(
                 streamID: "\(snapshot.device.id):\(event.streamID)",
                 timestamp: event.timestamp,
-                key: normalizedModelID(event.model),
+                key: activityModelID(event.model),
                 agentKind: event.agentKind == .subagent ? .subagent : .main))
         }
         return eventsBySource
@@ -146,7 +173,7 @@ struct RemoteUsageMapper {
             return ActivityTimeEvent(
                 streamID: "\(snapshot.device.id):\(event.streamID)",
                 timestamp: event.timestamp,
-                key: normalizedModelID(event.model),
+                key: activityModelID(event.model),
                 agentKind: event.agentKind == .subagent ? .subagent : .main)
         }
     }
@@ -157,8 +184,8 @@ struct RemoteUsageMapper {
         endDate: Date,
         usage: inout RawTokenUsage) {
         for event in snapshot.activityEvents where event.timestamp >= startDate && event.timestamp < endDate {
-            guard let model = normalizedModelID(event.model),
-                  usage.perModel[model] != nil else {
+            let model = activityModelID(event.model)
+            guard usage.perModel[model] != nil else {
                 continue
             }
             usage.perModel[model]?.sources.insert(
@@ -166,7 +193,37 @@ struct RemoteUsageMapper {
         }
     }
 
+    private func activityModelID(_ model: String?) -> String {
+        normalizedModelID(model) ?? UsageModelGrouping.mixedOrUnattributedKey
+    }
+
     private func deviceSource(_ source: String, deviceName: String) -> String {
         "\(source) · \(deviceName)"
+    }
+}
+
+private extension RemoteUsageMapper {
+    func appendCostEvents(
+        from snapshot: RemoteUsageSnapshot,
+        startDate: Date,
+        endDate: Date,
+        usage: inout RawTokenUsage,
+        usageBySource: inout [String: RawTokenUsage]) {
+        for event in snapshot.costEvents ?? [] where event.timestamp >= startDate && event.timestamp < endDate {
+            let model = normalizedModelID(event.model)
+            appendCostEvent(
+                event,
+                model: model,
+                source: deviceSource(event.source, deviceName: snapshot.device.name),
+                to: &usage)
+
+            var sourceUsage = usageBySource[event.source] ?? RawTokenUsage()
+            appendCostEvent(
+                event,
+                model: model,
+                source: event.source,
+                to: &sourceUsage)
+            usageBySource[event.source] = sourceUsage
+        }
     }
 }

@@ -229,6 +229,113 @@ final class UsageServiceBehaviorTests: XCTestCase {
     }
 }
 
+extension UsageServiceBehaviorTests {
+    func test_usageService_surfacesUnattributedTokenEventsInByModelBreakdown() async {
+        let recorder = MockReaderRecorder()
+        let reader = MockReader(name: "Hermes", recorder: recorder) { _, _ in
+            var usage = RawTokenUsage(inputTokens: 120)
+            usage.recordTokenEvent(
+                timestamp: behaviorTestISODate("2026-04-10T09:00:00Z"),
+                source: "Hermes",
+                model: nil,
+                inputTokens: 120,
+                outputTokens: 0)
+            return usage
+        }
+
+        let service = await MainActor.run { UsageService(readers: [reader]) }
+        await MainActor.run { service.selectDay(behaviorTestISODate("2026-04-10T12:00:00Z")) }
+        await service.refresh()
+
+        let usageData = await MainActor.run { service.usageData }
+        let unattributed = usageData.perModel.first {
+            $0.modelID == UsageModelGrouping.mixedOrUnattributedKey
+        }
+
+        XCTAssertEqual(unattributed?.totalTokens, 120)
+        XCTAssertEqual(unattributed?.displayModelID, UsageModelGrouping.mixedOrUnattributedLabel)
+        XCTAssertEqual(unattributed?.sources, ["Hermes"])
+        XCTAssertEqual(unattributed?.isPriceKnown, false)
+    }
+
+    func test_usageService_exportsReportedCostOnlyUnattributedEventAsKnownPrice() async throws {
+        let recorder = MockReaderRecorder()
+        let reader = MockReader(name: "Hermes", recorder: recorder) { _, _ in
+            var usage = RawTokenUsage(
+                cost: 1,
+                perModel: [
+                    UsageModelGrouping.mixedOrUnattributedKey: PerModelUsage(
+                        cost: 1,
+                        sources: ["Hermes"]),
+                ])
+            usage.recordTokenEvent(
+                timestamp: behaviorTestISODate("2026-04-10T09:00:00Z"),
+                source: "Hermes",
+                model: nil,
+                inputTokens: 0,
+                outputTokens: 0,
+                cost: 1)
+            return usage
+        }
+
+        let service = await MainActor.run { UsageService(readers: [reader]) }
+        await MainActor.run { service.selectDay(behaviorTestISODate("2026-04-10T12:00:00Z")) }
+        await service.refresh()
+
+        let usageData = await MainActor.run { service.usageData }
+        let unattributed = try XCTUnwrap(usageData.perModel.first {
+            $0.modelID == UsageModelGrouping.mixedOrUnattributedKey
+        })
+        let modelCSVRow = try XCTUnwrap(
+            UsageExport.csvString(for: usageData)
+                .split(separator: "\n")
+                .first { $0.hasPrefix("model,") })
+
+        XCTAssertEqual(unattributed.totalTokens, 0)
+        XCTAssertEqual(unattributed.cost, 1, accuracy: 0.000_001)
+        XCTAssertEqual(unattributed.activeSeconds, 0)
+        XCTAssertTrue(unattributed.isPriceKnown)
+        XCTAssertTrue(modelCSVRow.contains(",1.000000,"))
+    }
+
+    func test_usageService_surfacesMixedModelActivityInUnattributedBreakdown() async {
+        let recorder = MockReaderRecorder()
+        let timestamp = behaviorTestISODate("2026-04-10T09:00:00Z")
+        let reader = MockReader(name: "Hermes", recorder: recorder) { _, _ in
+            RawTokenUsage(
+                inputTokens: 200,
+                activeSeconds: 30,
+                perModel: [
+                    "model-a": PerModelUsage(totalTokens: 100, sources: ["Hermes"]),
+                    "model-b": PerModelUsage(totalTokens: 100, sources: ["Hermes"]),
+                    UsageModelGrouping.mixedOrUnattributedKey: PerModelUsage(
+                        activeSeconds: 30,
+                        sources: ["Hermes"]),
+                ],
+                activityEvents: [
+                    ActivityTimeEvent(
+                        streamID: "mixed-session",
+                        timestamp: timestamp,
+                        key: UsageModelGrouping.mixedOrUnattributedKey),
+                ])
+        }
+
+        let service = await MainActor.run { UsageService(readers: [reader]) }
+        await MainActor.run { service.selectDay(behaviorTestISODate("2026-04-10T12:00:00Z")) }
+        await service.refresh()
+
+        let usageData = await MainActor.run { service.usageData }
+        let unattributed = usageData.perModel.first {
+            $0.modelID == UsageModelGrouping.mixedOrUnattributedKey
+        }
+
+        XCTAssertEqual(unattributed?.totalTokens, 0)
+        XCTAssertEqual(unattributed?.displayModelID, UsageModelGrouping.mixedOrUnattributedLabel)
+        XCTAssertEqual(unattributed?.activeSeconds, 30)
+        XCTAssertEqual(unattributed?.sources, ["Hermes"])
+    }
+}
+
 final class UsageServicePeriodTotalsConcurrencyTests: XCTestCase {
     func test_usageService_remoteSyncChangeRejectsSupersededPeriodTokenTotalsLoad() async throws {
         let suiteName = "UsageServicePeriodTotalsConcurrencyTests.\(UUID().uuidString)"

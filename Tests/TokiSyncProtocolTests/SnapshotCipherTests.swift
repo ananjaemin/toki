@@ -104,7 +104,15 @@ final class SnapshotCipherTests: XCTestCase {
                     outputTokens: 3,
                     cacheReadTokens: 2,
                     cacheWriteTokens: 0,
-                    reasoningTokens: 1),
+                    reasoningTokens: 1,
+                    cost: 0.25),
+            ],
+            costEvents: [
+                RemoteCostEvent(
+                    timestamp: generatedAt.addingTimeInterval(-30),
+                    source: "Hermes",
+                    model: nil,
+                    cost: 0.5),
             ],
             activityEvents: [
                 RemoteActivityEvent(

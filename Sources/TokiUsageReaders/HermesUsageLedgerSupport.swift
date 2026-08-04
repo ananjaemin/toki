@@ -11,48 +11,6 @@ let hermesUsageLedgerMaximumEvents = 100_000
 let hermesLedgerMaximumCumulativeTokens = Int.max / 8
 let hermesUsageLedgerMaximumEventTokenCount = 1_000_000_000
 
-struct HermesSessionObservation {
-    let sessionID: String
-    let startedAt: Date
-    let earliestActivityAt: Date?
-    let latestActivityAt: Date?
-    let model: String?
-    let counters: HermesTokenCounters
-    let cost: Double
-    let costIsDerivedFromModelPricing: Bool
-    let reportedCost: Double?
-    let modelPricingCounters: [String: HermesTokenCounters]?
-    let projectName: String?
-    let attributionQuality: AttributionQuality
-
-    init(
-        sessionID: String,
-        startedAt: Date,
-        earliestActivityAt: Date?,
-        latestActivityAt: Date?,
-        model: String?,
-        counters: HermesTokenCounters,
-        cost: Double,
-        costIsDerivedFromModelPricing: Bool = false,
-        reportedCost: Double? = nil,
-        modelPricingCounters: [String: HermesTokenCounters]? = nil,
-        projectName: String?,
-        attributionQuality: AttributionQuality) {
-        self.sessionID = sessionID
-        self.startedAt = startedAt
-        self.earliestActivityAt = earliestActivityAt
-        self.latestActivityAt = latestActivityAt
-        self.model = model
-        self.counters = counters
-        self.cost = cost
-        self.costIsDerivedFromModelPricing = costIsDerivedFromModelPricing
-        self.reportedCost = reportedCost
-        self.modelPricingCounters = modelPricingCounters
-        self.projectName = projectName
-        self.attributionQuality = attributionQuality
-    }
-}
-
 struct HermesTokenCounters: Codable, Equatable {
     let inputTokens: Int
     let outputTokens: Int
@@ -171,6 +129,48 @@ func hermesModelPricingCountersAreValid(
     return !totalCounters.hasDecrease(comparedTo: combinedCounters)
 }
 
+func hermesCompleteModelCounters(
+    _ modelCounters: [String: HermesTokenCounters]?,
+    matching totalCounters: HermesTokenCounters) -> [String: HermesTokenCounters]? {
+    guard let modelCounters,
+          hermesModelPricingCountersAreValid(modelCounters, within: totalCounters) else {
+        return nil
+    }
+
+    let combinedCounters = modelCounters.values.reduce(HermesTokenCounters.zero) {
+        $0.adding($1)
+    }
+    return combinedCounters == totalCounters ? modelCounters : nil
+}
+
+func hermesModelCounterDeltas(
+    current: [String: HermesTokenCounters]?,
+    previous: [String: HermesTokenCounters]?,
+    maximumDelta: HermesTokenCounters) -> [String: HermesTokenCounters]? {
+    guard let current, let previous else { return nil }
+
+    var combinedDelta = HermesTokenCounters.zero
+    var deltas: [String: HermesTokenCounters] = [:]
+    for model in Set(current.keys).union(previous.keys) {
+        let currentCounters = current[model] ?? .zero
+        let previousCounters = previous[model] ?? .zero
+        guard !currentCounters.hasDecrease(comparedTo: previousCounters) else { return nil }
+
+        let delta = currentCounters.subtracting(previousCounters)
+        guard combinedDelta.canAdd(
+            delta,
+            maximum: hermesLedgerMaximumCumulativeTokens) else {
+            return nil
+        }
+        combinedDelta = combinedDelta.adding(delta)
+        if delta.totalTokens > 0 {
+            deltas[model] = delta
+        }
+    }
+    guard !maximumDelta.hasDecrease(comparedTo: combinedDelta) else { return nil }
+    return deltas
+}
+
 struct HermesUsageLedgerEvent: Codable, Equatable {
     let sessionIdentifier: String
     var timestamp: Date
@@ -205,7 +205,7 @@ struct HermesUsageLedgerEvent: Codable, Equatable {
         hermesIdentifierIsValid(sessionIdentifier)
             && hermesDateIsValid(timestamp)
             && counters.isValid(maximum: hermesUsageLedgerMaximumEventTokenCount)
-            && counters.totalTokens > 0
+            && (counters.totalTokens > 0 || cost > 0)
             && cost.isFinite
             && cost >= 0
             && model?.utf8.count ?? 0 <= 512
@@ -309,8 +309,10 @@ struct HermesUsageLedgerPrivateBaseline: Codable, Equatable {
     let lastObservedAt: Date
     let model: String?
     let counters: HermesTokenCounters
+    let modelCounters: [String: HermesTokenCounters]?
     let cost: Double
     let reportedCost: Double?
+    let modelReportedCosts: [String: Double]?
     let modelPricingCounters: [String: HermesTokenCounters]?
     let attributionQuality: AttributionQuality
 
@@ -320,8 +322,10 @@ struct HermesUsageLedgerPrivateBaseline: Codable, Equatable {
         lastObservedAt = baseline.lastObservedAt
         model = baseline.model
         counters = baseline.counters
+        modelCounters = baseline.modelCounters
         cost = baseline.cost
         reportedCost = baseline.reportedCost
+        modelReportedCosts = baseline.modelReportedCosts
         modelPricingCounters = baseline.modelPricingCounters
         attributionQuality = baseline.attributionQuality
     }
@@ -333,8 +337,10 @@ struct HermesUsageLedgerPrivateBaseline: Codable, Equatable {
             lastObservedAt: lastObservedAt,
             model: model,
             counters: counters,
+            modelCounters: modelCounters,
             cost: cost,
             reportedCost: reportedCost,
+            modelReportedCosts: modelReportedCosts,
             modelPricingCounters: modelPricingCounters,
             projectName: nil,
             attributionQuality: attributionQuality)
@@ -387,8 +393,10 @@ struct HermesUsageLedgerBaseline: Codable, Equatable {
     let lastObservedAt: Date
     let model: String?
     let counters: HermesTokenCounters
+    let modelCounters: [String: HermesTokenCounters]?
     let cost: Double
     let reportedCost: Double?
+    let modelReportedCosts: [String: Double]?
     let modelPricingCounters: [String: HermesTokenCounters]?
     let projectName: String?
     let attributionQuality: AttributionQuality
@@ -399,8 +407,10 @@ struct HermesUsageLedgerBaseline: Codable, Equatable {
         lastObservedAt: Date,
         model: String?,
         counters: HermesTokenCounters,
+        modelCounters: [String: HermesTokenCounters]? = nil,
         cost: Double,
         reportedCost: Double? = nil,
+        modelReportedCosts: [String: Double]? = nil,
         modelPricingCounters: [String: HermesTokenCounters]? = nil,
         projectName: String?,
         attributionQuality: AttributionQuality) {
@@ -409,8 +419,10 @@ struct HermesUsageLedgerBaseline: Codable, Equatable {
         self.lastObservedAt = lastObservedAt
         self.model = model
         self.counters = counters
+        self.modelCounters = modelCounters
         self.cost = cost
         self.reportedCost = reportedCost
+        self.modelReportedCosts = modelReportedCosts
         self.modelPricingCounters = modelPricingCounters
         self.projectName = projectName
         self.attributionQuality = attributionQuality
@@ -423,10 +435,12 @@ struct HermesUsageLedgerBaseline: Codable, Equatable {
             && lastActivityAt >= startedAt
             && lastObservedAt >= startedAt
             && counters.isValid()
+            && hermesModelPricingCountersAreValid(modelCounters, within: counters)
             && cost.isFinite
             && cost >= 0
             && hermesReportedCostBreakdownIsValid(
                 reportedCost,
+                modelReportedCosts: modelReportedCosts,
                 modelPricingCounters: modelPricingCounters,
                 totalCost: cost)
             && hermesModelPricingCountersAreValid(modelPricingCounters, within: counters)
@@ -437,8 +451,10 @@ struct HermesUsageLedgerBaseline: Codable, Equatable {
     func metadataDiffers(from previous: Self) -> Bool {
         model != previous.model
             || counters != previous.counters
+            || modelCounters != previous.modelCounters
             || cost != previous.cost
             || reportedCost != previous.reportedCost
+            || modelReportedCosts != previous.modelReportedCosts
             || modelPricingCounters != previous.modelPricingCounters
             || attributionQuality != previous.attributionQuality
     }
@@ -451,7 +467,7 @@ struct HermesUsageLedgerCarryover: Codable, Equatable {
 
     var isValid: Bool {
         counters.isValid()
-            && counters.totalTokens > 0
+            && (counters.totalTokens > 0 || cost > 0)
             && cost.isFinite
             && cost >= 0
             && hermesDateIsValid(firstObservedAt)

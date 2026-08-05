@@ -60,6 +60,9 @@ public extension RawTokenUsage {
             perModel[modelID, default: PerModelUsage()].activeSeconds += seconds
             perModel[modelID, default: PerModelUsage()].sources.insert(source)
         }
+        for (modelID, seconds) in estimate.wallClockSecondsByKey {
+            perModel[modelID, default: PerModelUsage()].wallClockSeconds += seconds
+        }
     }
 
     mutating func mergeActivityEvents(
@@ -75,6 +78,12 @@ public extension RawTokenUsage {
         source: String? = nil,
         clippingEndDate: Date? = nil) {
         guard !activityEvents.isEmpty else {
+            // Readers that report totals without timestamps never reach the estimate
+            // below, so carry their duration into the wall-clock field here. Leaving it
+            // at zero would export an unmeasured zero for time that was measured.
+            for modelID in perModel.keys {
+                perModel[modelID]?.wallClockSeconds = fallbackActiveSecondsByModel[modelID, default: 0]
+            }
             let fallbackOnlyWorkTime = resolvedFallbackWorkTime
             fallbackWorkTime = fallbackOnlyWorkTime
             workTime = fallbackOnlyWorkTime
@@ -84,6 +93,7 @@ public extension RawTokenUsage {
         activeSeconds = fallbackActiveSeconds
         for modelID in perModel.keys {
             perModel[modelID]?.activeSeconds = fallbackActiveSecondsByModel[modelID, default: 0]
+            perModel[modelID]?.wallClockSeconds = fallbackActiveSecondsByModel[modelID, default: 0]
         }
 
         let estimate = ActivityTimeEstimator.estimate(
@@ -106,6 +116,24 @@ public extension RawTokenUsage {
             if let source {
                 perModel[modelID, default: PerModelUsage()].sources.insert(source)
             }
+        }
+        for (modelID, seconds) in estimate.wallClockSecondsByKey {
+            perModel[modelID, default: PerModelUsage()].wallClockSeconds += seconds
+        }
+        boundModelSourceWallClockToModelTotals()
+    }
+
+    /// `perModelBySource` is summed per origin, so a model observed on several origins
+    /// would otherwise report their durations added together. Bound each row by the
+    /// model's merged span so no row claims more elapsed time than the model was in use.
+    private mutating func boundModelSourceWallClockToModelTotals() {
+        for (key, usage) in perModelBySource {
+            guard let modelWallClock = perModel[key.modelID]?.wallClockSeconds,
+                  modelWallClock > 0,
+                  usage.wallClockSeconds > modelWallClock else {
+                continue
+            }
+            perModelBySource[key]?.wallClockSeconds = modelWallClock
         }
     }
 }

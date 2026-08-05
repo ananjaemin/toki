@@ -184,6 +184,42 @@ final class UsageServiceActiveTimeTests: XCTestCase {
         XCTAssertEqual(Set(service.usageData.perModel.map(\.id)), ["gpt-5.4|First", "gpt-5.4|Second"])
         XCTAssertEqual(service.usageData.perModel.map(\.activeSeconds).reduce(0, +), 60, accuracy: 0.001)
     }
+
+    @MainActor
+    func test_usageReportBoundsModelRowTimeToElapsedWindowWhenSessionsRunConcurrently() async {
+        // Three sessions of one model run over the same two minutes. Agent work time is
+        // three times the window, but the row must report the window itself and express
+        // the parallelism as a multiplier instead.
+        let streamIDs = ["session-a", "session-b", "session-c"]
+        let events = streamIDs.flatMap { streamID in
+            [
+                ActivityTimeEvent(
+                    streamID: streamID,
+                    timestamp: usageServiceActiveTimeISODate("2026-04-10T00:00:00Z"),
+                    key: "gpt-5.4"),
+                ActivityTimeEvent(
+                    streamID: streamID,
+                    timestamp: usageServiceActiveTimeISODate("2026-04-10T00:02:00Z"),
+                    key: "gpt-5.4"),
+            ]
+        }
+        let reader = MockReader(name: "Codex", recorder: MockReaderRecorder()) { _, _ in
+            mockActivityUsage(
+                totalTokens: 300,
+                modelID: "gpt-5.4",
+                source: "Codex",
+                events: events)
+        }
+        let service = UsageService(readers: [reader])
+
+        await service.refresh()
+
+        let stat = try? XCTUnwrap(service.usageData.perModel.first)
+        XCTAssertEqual(stat?.activeSeconds ?? 0, 450, accuracy: 0.001)
+        XCTAssertEqual(stat?.wallClockSeconds ?? 0, 150, accuracy: 0.001)
+        XCTAssertEqual(stat?.reportedSeconds ?? 0, 150, accuracy: 0.001)
+        XCTAssertEqual(stat?.parallelMultiplier ?? 0, 3, accuracy: 0.001)
+    }
 }
 
 @MainActor
@@ -400,6 +436,28 @@ final class UsageModelActiveTimeReportTests: XCTestCase {
                 includesEmptySourceRows: false))
 
         XCTAssertEqual(result.usageData.perModel.first?.activeSeconds ?? 0, 60, accuracy: 0.001)
+    }
+}
+
+final class RawTokenUsageFallbackTimeTests: XCTestCase {
+    func test_recomputeKeepsModelWallClockForFallbackOnlyUsage() {
+        // A reader that reports totals without timestamps contributes no activity
+        // events, so the recompute returns before the estimate runs. The per-model
+        // wall clock still has to carry the fallback duration; otherwise the export
+        // column reports an unmeasured zero for time that was in fact measured.
+        var fallbackOnly = RawTokenUsage()
+        fallbackOnly.perModel["gpt-5.4"] = PerModelUsage(
+            totalTokens: 100,
+            activeSeconds: 120,
+            sources: ["Cursor"])
+
+        var combined = RawTokenUsage()
+        combined += fallbackOnly
+        combined.recomputeMergedActiveEstimate()
+
+        XCTAssertTrue(combined.activityEvents.isEmpty)
+        XCTAssertEqual(combined.perModel["gpt-5.4"]?.activeSeconds ?? 0, 120, accuracy: 0.001)
+        XCTAssertEqual(combined.perModel["gpt-5.4"]?.wallClockSeconds ?? 0, 120, accuracy: 0.001)
     }
 }
 

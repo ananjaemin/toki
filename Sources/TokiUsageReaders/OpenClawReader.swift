@@ -73,11 +73,17 @@ public struct OpenClawReader: TokenReader {
                 result.outputTokens += output
                 result.cacheReadTokens += cacheRead
                 result.cacheWriteTokens += cacheWrite
+                // OpenClaw never names a model, so this usage groups under the shared
+                // mixed/unattributed key.
+                result.accumulatePerModelUsage(
+                    model: nil,
+                    source: sourceName,
+                    totalTokens: input + output + cacheRead + cacheWrite)
                 activityEvents.append(
                     ActivityTimeEvent(
                         streamID: session.streamID,
                         timestamp: eventDate,
-                        key: nil))
+                        key: UsageModelGrouping.groupingKey(for: nil)))
                 result.recordTokenEvent(
                     timestamp: eventDate,
                     source: sourceName,

@@ -49,6 +49,7 @@ struct PeriodTokenTotalsCacheKey: Codable, Equatable {
     let endDate: Date
     let enabledReaderNames: [String: Bool]
     let scope: UsageScope
+    let modelScope: UsageModelScope
 }
 
 struct PeriodTokenTotalsCacheEntry: Codable, Equatable {
@@ -63,9 +64,17 @@ final class PeriodTokenTotalsCache {
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
 
-    init(defaults: UserDefaults = .standard, key: String = "usagePanel.periodTokenTotalsCache.v2") {
+    /// Cache keys this type no longer reads.
+    ///
+    /// Bumping the key leaves the previous entry unreachable but still stored, so its historical
+    /// token totals and origin metadata would survive the app's own cache cleanup. Drop them
+    /// whenever the cache is created or cleared.
+    private static let supersededKeys = ["usagePanel.periodTokenTotalsCache.v2"]
+
+    init(defaults: UserDefaults = .standard, key: String = "usagePanel.periodTokenTotalsCache.v3") {
         self.defaults = defaults
         self.key = key
+        removeSupersededEntries()
     }
 
     func entry(for requestKey: PeriodTokenTotalsCacheKey) -> PeriodTokenTotalsCacheEntry? {
@@ -88,5 +97,12 @@ final class PeriodTokenTotalsCache {
 
     func clear() {
         defaults.removeObject(forKey: key)
+        removeSupersededEntries()
+    }
+
+    private func removeSupersededEntries() {
+        for supersededKey in Self.supersededKeys where supersededKey != key {
+            defaults.removeObject(forKey: supersededKey)
+        }
     }
 }

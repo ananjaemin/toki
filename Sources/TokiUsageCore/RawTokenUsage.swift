@@ -15,6 +15,12 @@ public enum UsageQuality: String {
 public enum UsageModelGrouping {
     public static let mixedOrUnattributedKey = "\u{0}toki:mixed-or-unattributed"
     public static let mixedOrUnattributedLabel = "Mixed / Unattributed"
+
+    /// Key that usage should be grouped under, folding a missing model name into the shared
+    /// mixed/unattributed bucket.
+    public static func groupingKey(for model: String?) -> String {
+        model?.trimmedNonEmpty ?? mixedOrUnattributedKey
+    }
 }
 
 public enum AttributionQuality: String, Codable {
@@ -244,6 +250,8 @@ public struct RawTokenUsage {
     public var cacheReadTokens: Int
     public var cacheWriteTokens: Int
     public var reasoningTokens: Int
+    /// Model-attributed tokens whose input/output/cache category is unavailable.
+    public var unclassifiedTokens: Int
     public var cost: Double
     public var activeSeconds: TimeInterval
     public var workTime: WorkTimeMetrics
@@ -263,6 +271,7 @@ public struct RawTokenUsage {
         cacheReadTokens: Int = 0,
         cacheWriteTokens: Int = 0,
         reasoningTokens: Int = 0,
+        unclassifiedTokens: Int = 0,
         cost: Double = 0,
         activeSeconds: TimeInterval = 0,
         workTime: WorkTimeMetrics = .zero,
@@ -279,6 +288,7 @@ public struct RawTokenUsage {
         self.cacheReadTokens = cacheReadTokens
         self.cacheWriteTokens = cacheWriteTokens
         self.reasoningTokens = reasoningTokens
+        self.unclassifiedTokens = unclassifiedTokens
         self.cost = cost
         self.activeSeconds = activeSeconds
         self.workTime = workTime
@@ -294,7 +304,7 @@ public struct RawTokenUsage {
     }
 
     public var totalTokens: Int {
-        inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens + reasoningTokens
+        inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens + reasoningTokens + unclassifiedTokens
     }
 
     public var resolvedWorkTime: WorkTimeMetrics {
@@ -347,6 +357,27 @@ public struct RawTokenUsage {
         guard event.totalTokens > 0 || event.cost > 0 else { return }
         tokenEvents.append(event)
     }
+
+    /// Records a per-model row, folding usage with no model name into the shared
+    /// mixed/unattributed key.
+    ///
+    /// Every source needs a per-model row. Report building trusts authoritative per-model rows
+    /// over token events whose source labels disagree, so a source that contributes only events
+    /// disappears from the model breakdown as soon as another source reports the same key.
+    ///
+    /// Pair this with `UsageModelGrouping.groupingKey(for:)` on the matching activity events:
+    /// a row without active time replaces the event-derived estimate and would otherwise report
+    /// zero elapsed time for the source.
+    public mutating func accumulatePerModelUsage(
+        model: String?,
+        source: String,
+        totalTokens: Int,
+        cost: Double = 0) {
+        let key = UsageModelGrouping.groupingKey(for: model)
+        perModel[key, default: PerModelUsage()].totalTokens += totalTokens
+        perModel[key, default: PerModelUsage()].cost += cost
+        perModel[key, default: PerModelUsage()].sources.insert(source)
+    }
 }
 
 public func usageSessionID(fromPath path: String) -> String {
@@ -396,6 +427,7 @@ public func += (lhs: inout RawTokenUsage, rhs: RawTokenUsage) {
     lhs.cacheReadTokens += rhs.cacheReadTokens
     lhs.cacheWriteTokens += rhs.cacheWriteTokens
     lhs.reasoningTokens += rhs.reasoningTokens
+    lhs.unclassifiedTokens += rhs.unclassifiedTokens
     lhs.cost += rhs.cost
     lhs.activeSeconds += rhs.activeSeconds
     lhs.activityEvents.append(contentsOf: rhs.activityEvents)

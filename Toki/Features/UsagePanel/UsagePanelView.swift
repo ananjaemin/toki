@@ -28,9 +28,7 @@ struct UsagePanelView: View {
     var body: some View {
         VStack(spacing: 0) {
             PanelHeaderView(
-                isLoading: panelUsageIsUpdating(
-                    isLoading: viewModel.isLoading,
-                    isRefreshing: viewModel.isRefreshing),
+                isLoading: isUsageUpdating,
                 lastFetchedAt: viewModel.lastFetchedAt,
                 failedReaderNames: viewModel.failedReaderNames,
                 onRefresh: refresh,
@@ -117,9 +115,7 @@ struct UsagePanelView: View {
         case .overview:
             PanelHeroView(
                 usage: viewModel.usageData,
-                isLoading: panelUsageIsUpdating(
-                    isLoading: viewModel.isLoading,
-                    isRefreshing: viewModel.isRefreshing),
+                isLoading: isUsageUpdating,
                 currentUsageWindow: viewModel.currentUsageWindowForPresentation,
                 yesterdayTotal: viewModel.shouldCompareAgainstYesterday
                     ? viewModel.yesterdayTotalTokens
@@ -131,9 +127,7 @@ struct UsagePanelView: View {
                 panelDivider
                 PanelDeviceBreakdownView(
                     reports: viewModel.originReports,
-                    isUpdating: panelUsageIsUpdating(
-                        isLoading: viewModel.isLoading,
-                        isRefreshing: viewModel.isRefreshing),
+                    isUpdating: isUsageUpdating,
                     onSelect: { viewModel.selectUsageScope(.origin($0)) })
             }
             panelDivider
@@ -145,18 +139,18 @@ struct UsagePanelView: View {
                 usage: viewModel.usageData,
                 liveTokensPerSecond: scopedLiveTokensPerSecond,
                 liveTokenLabel: liveTokenLabel,
-                isLoading: viewModel.isLoading)
+                isLoading: isUsageUpdating)
         case .projects:
-            PanelProjectTimelineView(usage: viewModel.usageData, isLoading: viewModel.isLoading)
+            PanelProjectTimelineView(usage: viewModel.usageData, isLoading: isUsageUpdating)
         case .hourly:
-            PanelHourlyUsageView(usage: viewModel.usageData, isLoading: viewModel.isLoading)
+            PanelHourlyUsageView(usage: viewModel.usageData, isLoading: isUsageUpdating)
         case .byModel:
             PanelByModelView(
                 usage: viewModel.modelCatalogUsageData,
                 modelReports: viewModel.availableModelReports,
                 selectedModelID: $selectedModelsTabModelID,
                 scopeTitle: viewModel.usageScopeTitle,
-                isLoading: viewModel.isLoading)
+                isLoading: isUsageUpdating)
         case .sources:
             PanelSourceView(
                 usage: viewModel.usageData,
@@ -164,16 +158,21 @@ struct UsagePanelView: View {
                 selectedScope: viewModel.selectedUsageScope,
                 scopeTitle: viewModel.usageScopeTitle,
                 readerStatuses: viewModel.readerStatuses,
-                isLoading: viewModel.isLoading,
-                isRefreshing: viewModel.isRefreshing,
+                isLoading: isUsageUpdating,
                 onSelectOrigin: { viewModel.selectUsageScope(.origin($0)) })
         case .workTime:
-            PanelWorkTimeView(usage: viewModel.usageData, isLoading: viewModel.isLoading)
+            PanelWorkTimeView(usage: viewModel.usageData, isLoading: isUsageUpdating)
         }
     }
 }
 
 private extension UsagePanelView {
+    var isUsageUpdating: Bool {
+        panelUsageIsUpdating(
+            isLoading: viewModel.isLoading,
+            isRefreshing: viewModel.isRefreshing)
+    }
+
     var panelDivider: some View {
         Rectangle()
             .fill(Color.white.opacity(0.07))

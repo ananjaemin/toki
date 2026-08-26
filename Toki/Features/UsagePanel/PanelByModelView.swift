@@ -63,9 +63,10 @@ struct PanelByModelView: View {
                 options: modelOptions,
                 selectedModelID: $selectedModelID,
                 isSelectionUnavailable: selectedModelIsUnavailable)
+                .disabled(isLoading)
             panelDivider
 
-            if isLoading, modelOptions.isEmpty {
+            if isLoading {
                 VStack(spacing: 0) {
                     ForEach(Array(skeletonRowWidths.enumerated()), id: \.offset) { _, width in
                         skeletonModelRow(labelWidth: width)

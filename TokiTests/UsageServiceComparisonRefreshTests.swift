@@ -2,6 +2,39 @@ import XCTest
 @testable import Toki
 
 final class UsageServiceRollingWindowTests: XCTestCase {
+    func test_usageService_callerCancellationStopsActiveAggregation() async throws {
+        let suiteName = "UsageServiceRollingWindowTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let tracker = CancellableUsageRequestTracker()
+        let reader = CancellableSequencedReader(
+            name: "Mock",
+            blockedRequestNumber: 1,
+            tracker: tracker) { _, _ in
+                mockUsage(totalTokens: 100)
+            }
+        let service = await MainActor.run {
+            UsageService(
+                readers: [reader],
+                settings: UsagePanelSettings(
+                    defaults: UserDefaults(suiteName: suiteName)!,
+                    readerNames: ["Mock"]),
+                comparisonDebounce: .seconds(30))
+        }
+        let refreshTask = Task { await service.refresh() }
+        await tracker.waitForRequestCount(1)
+
+        refreshTask.cancel()
+        await refreshTask.value
+
+        let requestSnapshot = await tracker.snapshot()
+        let usageSnapshot = await MainActor.run { service.presentationSnapshot }
+        XCTAssertEqual(requestSnapshot.cancellationCount, 1)
+        XCTAssertEqual(usageSnapshot.combinedUsageData.totalTokens, 0)
+        XCTAssertFalse(usageSnapshot.isLoading)
+        XCTAssertFalse(usageSnapshot.isRefreshing)
+    }
+
     func test_usageService_windowChangeCancelsInFlightLoadAndPublishesLatestWindow() async throws {
         let suiteName = "UsageServiceRollingWindowTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
@@ -89,7 +122,7 @@ final class UsageServiceRollingWindowTests: XCTestCase {
 
         let requestSnapshot = await tracker.snapshot()
         let cachedSnapshot = await MainActor.run { service.presentationSnapshot }
-        XCTAssertEqual(requestSnapshot.requestCount, 2)
+        XCTAssertEqual(requestSnapshot.requestCount, 3)
         XCTAssertEqual(requestSnapshot.cancellationCount, 1)
         XCTAssertEqual(cachedSnapshot.combinedUsageData.totalTokens, 100)
         XCTAssertFalse(cachedSnapshot.isLoading)
@@ -166,6 +199,56 @@ final class UsageServiceRollingWindowTests: XCTestCase {
         XCTAssertEqual(calls.count, 1)
         XCTAssertEqual(calls[0].start, pastDay)
         XCTAssertEqual(calls[0].end, pastEnd)
+    }
+}
+
+final class UsageWindowResultCacheTests: XCTestCase {
+    func test_cachePrunesExpiredEntriesAndBoundsItsSize() {
+        let cache = UsageWindowResultCache(maximumAge: 10, maximumEntryCount: 2)
+        let base = Date(timeIntervalSince1970: 1000)
+        let request = UsageAggregationRequest(
+            start: base,
+            end: base.addingTimeInterval(1),
+            enabledReaderNames: [:],
+            includesEmptySourceRows: false)
+        let result = UsageAggregationResult(
+            usageData: .empty,
+            modelReports: [:],
+            originReports: [],
+            readerStatuses: [])
+
+        for offset in 0..<3 {
+            let fetchedAt = base.addingTimeInterval(TimeInterval(offset))
+            let key = UsageWindowResultCacheKey(
+                window: .calendarDay,
+                calendarDayStart: fetchedAt,
+                enabledReaderNames: [],
+                includesEmptySourceRows: false)
+            cache.store(
+                UsageWindowResultCacheEntry(
+                    request: request,
+                    result: result,
+                    fetchedAt: fetchedAt,
+                    previousTotalTokens: nil),
+                for: key,
+                now: fetchedAt)
+        }
+
+        XCTAssertEqual(cache.count, 2)
+        let latestKey = UsageWindowResultCacheKey(
+            window: .calendarDay,
+            calendarDayStart: base.addingTimeInterval(2),
+            enabledReaderNames: [],
+            includesEmptySourceRows: false)
+        let differentRequest = UsageAggregationRequest(
+            start: base.addingTimeInterval(10),
+            end: base.addingTimeInterval(11),
+            enabledReaderNames: [:],
+            includesEmptySourceRows: false)
+        cache.storePreviousTotalTokens(999, for: latestKey, matching: differentRequest)
+        XCTAssertNil(cache.entry(for: latestKey, now: base.addingTimeInterval(2))?.previousTotalTokens)
+        XCTAssertNil(cache.entry(for: latestKey, now: base.addingTimeInterval(20)))
+        XCTAssertEqual(cache.count, 0)
     }
 }
 

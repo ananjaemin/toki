@@ -95,8 +95,10 @@ final class PanelModelDetailRangeTests: XCTestCase {
 
         XCTAssertEqual(report.timeBuckets.count, 25)
         XCTAssertEqual(report.timeBuckets.first?.startDate, startDate)
-        XCTAssertEqual(report.timeBuckets.first?.endDate, tokiTestISODate("2026-04-10T11:00:00Z"))
-        XCTAssertEqual(report.timeBuckets.last?.startDate, tokiTestISODate("2026-04-11T10:00:00Z"))
+        XCTAssertEqual(report.timeBuckets.first?.endDate, calendar.dateInterval(of: .hour, for: startDate)?.end)
+        XCTAssertEqual(
+            report.timeBuckets.last?.startDate,
+            calendar.dateInterval(of: .hour, for: endDate.addingTimeInterval(-1))?.start)
         XCTAssertEqual(report.timeBuckets.last?.endDate, endDate)
     }
 

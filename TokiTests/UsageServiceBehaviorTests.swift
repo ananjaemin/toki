@@ -61,7 +61,9 @@ final class UsageServiceBehaviorTests: XCTestCase {
         let reader = BlockingMockReader(name: "Mock", gate: gate) { _, _ in
             mockUsage(totalTokens: 100)
         }
-        let service = await MainActor.run { UsageService(readers: [reader]) }
+        let service = await MainActor.run {
+            UsageService(readers: [reader], comparisonDebounce: .seconds(30))
+        }
         let initialRefresh = Task { await service.refresh() }
 
         await gate.waitForFirstRequest()

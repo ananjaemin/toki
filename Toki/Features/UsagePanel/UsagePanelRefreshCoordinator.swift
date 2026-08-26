@@ -83,6 +83,7 @@ final class UsagePanelRefreshCoordinator {
     private var settingsRefreshGeneration: UInt64 = 0
     private var hasPendingSettingsRefresh = false
     private var isRunningSettingsRefresh = false
+    private var pendingSettingsRefreshAction: (@MainActor (Bool, Bool) async -> Void)?
     private var pendingRefreshesPeriodTokenTotals = false
     private var pendingUsesWindowResultCache = true
 
@@ -116,13 +117,13 @@ final class UsagePanelRefreshCoordinator {
             pendingUsesWindowResultCache = pendingUsesWindowResultCache && usesWindowResultCache
         }
         hasPendingSettingsRefresh = true
+        pendingSettingsRefreshAction = refresh
         guard !isRunningSettingsRefresh else { return }
 
-        startPendingSettingsRefresh(refresh: refresh)
+        startPendingSettingsRefresh()
     }
 
-    private func startPendingSettingsRefresh(
-        refresh: @escaping @MainActor (Bool, Bool) async -> Void) {
+    private func startPendingSettingsRefresh() {
         settingsRefreshTask?.cancel()
         settingsRefreshGeneration &+= 1
         let generation = settingsRefreshGeneration
@@ -131,16 +132,18 @@ final class UsagePanelRefreshCoordinator {
             guard !Task.isCancelled else { return }
             let refreshesPeriodTokenTotals = pendingRefreshesPeriodTokenTotals
             let usesWindowResultCache = pendingUsesWindowResultCache
+            guard let refresh = pendingSettingsRefreshAction else { return }
             hasPendingSettingsRefresh = false
             pendingRefreshesPeriodTokenTotals = false
             pendingUsesWindowResultCache = true
+            pendingSettingsRefreshAction = nil
             isRunningSettingsRefresh = true
             await refresh(refreshesPeriodTokenTotals, usesWindowResultCache)
             guard generation == settingsRefreshGeneration else { return }
             isRunningSettingsRefresh = false
             settingsRefreshTask = nil
             if hasPendingSettingsRefresh {
-                startPendingSettingsRefresh(refresh: refresh)
+                startPendingSettingsRefresh()
             }
         }
     }
@@ -153,6 +156,7 @@ final class UsagePanelRefreshCoordinator {
         settingsRefreshTask = nil
         hasPendingSettingsRefresh = false
         isRunningSettingsRefresh = false
+        pendingSettingsRefreshAction = nil
         pendingRefreshesPeriodTokenTotals = false
         pendingUsesWindowResultCache = true
     }

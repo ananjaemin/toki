@@ -63,15 +63,7 @@ public struct CursorReader: TokenReader, LiveContextConfigurableTokenReader {
             to: endDate)
         guard !Task.isCancelled else { return RawTokenUsage() }
 
-        let readAt = Date()
-        let liveContextBounds = switch liveContextWindow {
-        case .rolling24Hours:
-            (
-                start: readAt.addingTimeInterval(-24 * 60 * 60),
-                end: readAt)
-        case .calendarDay, nil:
-            (start: startDate, end: endDate)
-        }
+        let liveContextBounds = (start: startDate, end: endDate)
         let composerPayloads: [String] = if liveContextWindow != nil {
             try cursorQueryLiveComposerPayloads(
                 db: db,

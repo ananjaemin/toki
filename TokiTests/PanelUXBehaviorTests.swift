@@ -224,6 +224,29 @@ final class PanelUXBehaviorTests: XCTestCase {
 
 final class UsagePanelRefreshCoordinatorTests: XCTestCase {
     @MainActor
+    func test_runningSettingsRefreshUsesLatestPendingAction() async {
+        let coordinator = UsagePanelRefreshCoordinator()
+        let firstStarted = expectation(description: "First refresh started")
+        let secondRan = expectation(description: "Latest pending refresh ran")
+        coordinator.scheduleSettingsRefresh(
+            refreshesPeriodTokenTotals: true,
+            usesWindowResultCache: false) { _, _ in
+                firstStarted.fulfill()
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+        await fulfillment(of: [firstStarted], timeout: 1)
+
+        coordinator.scheduleSettingsRefresh(
+            refreshesPeriodTokenTotals: false,
+            usesWindowResultCache: true) { _, _ in
+                secondRan.fulfill()
+            }
+
+        await fulfillment(of: [secondRan], timeout: 1)
+        coordinator.cancel()
+    }
+
+    @MainActor
     func test_cancelStopsRunningSettingsRefresh() async {
         let coordinator = UsagePanelRefreshCoordinator()
         let started = expectation(description: "Settings refresh started")

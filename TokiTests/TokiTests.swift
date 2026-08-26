@@ -3,12 +3,15 @@ import XCTest
 @testable import Toki
 @testable import TokiUsageReaders
 
-final class TokiTests: XCTestCase {
+final class PricingRefreshHostDetectionTests: XCTestCase {
     func test_pricingCatalogRefreshSkipsXCTestHost() {
+        XCTAssertFalse(shouldStartPricingCatalogRefresh())
         XCTAssertFalse(shouldStartPricingCatalogRefresh(isXCTestLoaded: true))
         XCTAssertTrue(shouldStartPricingCatalogRefresh(isXCTestLoaded: false))
     }
+}
 
+final class TokiTests: XCTestCase {
     func test_formattedTokens_belowThousand() {
         XCTAssertEqual(0.formattedTokens(), "0")
         XCTAssertEqual(1.formattedTokens(), "1")

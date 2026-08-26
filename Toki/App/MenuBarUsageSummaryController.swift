@@ -160,7 +160,8 @@ final class MenuBarUsageSummaryController {
                 start: interval.start,
                 end: interval.end,
                 enabledReaderNames: settings.normalizedReaderSettings(for: aggregator.readerNames),
-                includesEmptySourceRows: false)
+                includesEmptySourceRows: false,
+                includesLiveContext: true)
             let result = await aggregator.aggregateUsage(for: request)
             return MenuBarUsageSummary(
                 currentUsageWindow: window,

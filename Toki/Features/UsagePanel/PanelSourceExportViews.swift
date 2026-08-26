@@ -8,6 +8,7 @@ struct PanelSourceView: View {
     let scopeTitle: String
     let readerStatuses: [ReaderStatus]
     let isLoading: Bool
+    let isRefreshing: Bool
     let onSelectOrigin: (UsageOriginID) -> Void
 
     @State private var copiedFormat: UsageExportFormat?
@@ -27,7 +28,9 @@ struct PanelSourceView: View {
                 if selectedScope == .all, originReports.count > 1 {
                     PanelDeviceBreakdownView(
                         reports: originReports,
-                        isUpdating: isLoading,
+                        isUpdating: panelUsageIsUpdating(
+                            isLoading: isLoading,
+                            isRefreshing: isRefreshing),
                         onSelect: onSelectOrigin)
                 }
 

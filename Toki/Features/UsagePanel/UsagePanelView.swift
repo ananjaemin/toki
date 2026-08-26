@@ -139,18 +139,18 @@ struct UsagePanelView: View {
                 usage: viewModel.usageData,
                 liveTokensPerSecond: scopedLiveTokensPerSecond,
                 liveTokenLabel: liveTokenLabel,
-                isLoading: isUsageUpdating)
+                isLoading: viewModel.isLoading)
         case .projects:
-            PanelProjectTimelineView(usage: viewModel.usageData, isLoading: isUsageUpdating)
+            PanelProjectTimelineView(usage: viewModel.usageData, isLoading: viewModel.isLoading)
         case .hourly:
-            PanelHourlyUsageView(usage: viewModel.usageData, isLoading: isUsageUpdating)
+            PanelHourlyUsageView(usage: viewModel.usageData, isLoading: viewModel.isLoading)
         case .byModel:
             PanelByModelView(
                 usage: viewModel.modelCatalogUsageData,
                 modelReports: viewModel.availableModelReports,
                 selectedModelID: $selectedModelsTabModelID,
                 scopeTitle: viewModel.usageScopeTitle,
-                isLoading: isUsageUpdating)
+                isLoading: viewModel.isLoading)
         case .sources:
             PanelSourceView(
                 usage: viewModel.usageData,
@@ -158,10 +158,11 @@ struct UsagePanelView: View {
                 selectedScope: viewModel.selectedUsageScope,
                 scopeTitle: viewModel.usageScopeTitle,
                 readerStatuses: viewModel.readerStatuses,
-                isLoading: isUsageUpdating,
+                isLoading: viewModel.isLoading,
+                isRefreshing: viewModel.isRefreshing,
                 onSelectOrigin: { viewModel.selectUsageScope(.origin($0)) })
         case .workTime:
-            PanelWorkTimeView(usage: viewModel.usageData, isLoading: isUsageUpdating)
+            PanelWorkTimeView(usage: viewModel.usageData, isLoading: viewModel.isLoading)
         }
     }
 }

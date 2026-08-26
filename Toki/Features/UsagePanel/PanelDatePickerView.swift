@@ -3,8 +3,8 @@ import SwiftUI
 struct PanelDatePickerView: View {
     let startDate: Date
     let endDate: Date
+    let currentUsageWindow: CurrentUsageWindow?
     @Binding var isRangeMode: Bool
-    let isSingleDay: Bool
     let selectDay: (Date) -> Void
     let selectRangeStart: (Date) -> Void
     let selectRangeEnd: (Date) -> Void
@@ -17,8 +17,8 @@ struct PanelDatePickerView: View {
         .current
     }
 
-    private var isToday: Bool {
-        calendar.isDateInToday(startDate) && isSingleDay
+    private var isCurrentPeriod: Bool {
+        currentUsageWindow != nil
     }
 
     private static let fullDateFormatter: DateFormatter = {
@@ -45,7 +45,7 @@ struct PanelDatePickerView: View {
 
             Spacer()
 
-            if !isToday {
+            if !isCurrentPeriod {
                 todayButton
             }
 
@@ -96,6 +96,26 @@ struct PanelDatePickerView: View {
                 selectDay(previousDay)
             }
 
+            currentPeriodLabel
+
+            navButton(
+                icon: "chevron.right",
+                disabled: isCurrentPeriod,
+                accessibilityLabel: "Next day") {
+                    guard let nextDay = calendar.date(byAdding: .day, value: 1, to: startDate) else { return }
+                    guard nextDay <= Date() else { return }
+                    selectDay(nextDay)
+                }
+        }
+    }
+
+    @ViewBuilder
+    private var currentPeriodLabel: some View {
+        if currentUsageWindow == .rolling24Hours {
+            Text(CurrentUsageWindow.rolling24Hours.title)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.white)
+        } else {
             Button { showStartPicker.toggle() } label: {
                 Text(Self.fullDateFormatter.string(from: startDate))
                     .font(.system(size: 12, weight: .medium))
@@ -113,15 +133,6 @@ struct PanelDatePickerView: View {
                             selectDay(newDay)
                         }))
             }
-
-            navButton(
-                icon: "chevron.right",
-                disabled: isToday,
-                accessibilityLabel: "Next day") {
-                    guard let nextDay = calendar.date(byAdding: .day, value: 1, to: startDate) else { return }
-                    guard nextDay <= Date() else { return }
-                    selectDay(nextDay)
-                }
         }
     }
 

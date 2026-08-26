@@ -28,7 +28,9 @@ struct UsagePanelView: View {
     var body: some View {
         VStack(spacing: 0) {
             PanelHeaderView(
-                isLoading: viewModel.isLoading,
+                isLoading: panelUsageIsUpdating(
+                    isLoading: viewModel.isLoading,
+                    isRefreshing: viewModel.isRefreshing),
                 lastFetchedAt: viewModel.lastFetchedAt,
                 failedReaderNames: viewModel.failedReaderNames,
                 onRefresh: refresh,
@@ -39,8 +41,8 @@ struct UsagePanelView: View {
             PanelDatePickerView(
                 startDate: viewModel.startDate,
                 endDate: viewModel.endDate,
+                currentUsageWindow: viewModel.currentUsageWindowForPresentation,
                 isRangeMode: $viewModel.isRangeMode,
-                isSingleDay: viewModel.isSingleDay,
                 selectDay: selectDay,
                 selectRangeStart: selectRangeStart,
                 selectRangeEnd: selectRangeEnd,
@@ -95,6 +97,12 @@ struct UsagePanelView: View {
         .onReceive(viewModel.settings.$showsZeroSourceRows.dropFirst()) { _ in
             scheduleSettingsRefresh()
         }
+        .onReceive(viewModel.settings.$currentUsageWindow.dropFirst()) { _ in
+            viewModel.handleCurrentUsageWindowChange()
+            scheduleSettingsRefresh(
+                refreshesPeriodTokenTotals: false,
+                usesWindowResultCache: true)
+        }
         .onReceive(viewModel.settings.refreshIntervalPublisher.dropFirst()) { _ in
             startRefreshLoop(refreshImmediately: false)
         }
@@ -109,7 +117,10 @@ struct UsagePanelView: View {
         case .overview:
             PanelHeroView(
                 usage: viewModel.usageData,
-                isLoading: viewModel.isLoading,
+                isLoading: panelUsageIsUpdating(
+                    isLoading: viewModel.isLoading,
+                    isRefreshing: viewModel.isRefreshing),
+                currentUsageWindow: viewModel.currentUsageWindowForPresentation,
                 yesterdayTotal: viewModel.shouldCompareAgainstYesterday
                     ? viewModel.yesterdayTotalTokens
                     : nil)
@@ -120,6 +131,9 @@ struct UsagePanelView: View {
                 panelDivider
                 PanelDeviceBreakdownView(
                     reports: viewModel.originReports,
+                    isUpdating: panelUsageIsUpdating(
+                        isLoading: viewModel.isLoading,
+                        isRefreshing: viewModel.isRefreshing),
                     onSelect: { viewModel.selectUsageScope(.origin($0)) })
             }
             panelDivider
@@ -151,6 +165,7 @@ struct UsagePanelView: View {
                 scopeTitle: viewModel.usageScopeTitle,
                 readerStatuses: viewModel.readerStatuses,
                 isLoading: viewModel.isLoading,
+                isRefreshing: viewModel.isRefreshing,
                 onSelectOrigin: { viewModel.selectUsageScope(.origin($0)) })
         case .workTime:
             PanelWorkTimeView(usage: viewModel.usageData, isLoading: viewModel.isLoading)
@@ -220,15 +235,21 @@ private extension UsagePanelView {
             refresh: { await refreshVisibleData() })
     }
 
-    func scheduleSettingsRefresh() {
+    func scheduleSettingsRefresh(
+        refreshesPeriodTokenTotals: Bool = true,
+        usesWindowResultCache: Bool = false) {
         refreshCoordinator.scheduleSettingsRefresh {
-            await refreshVisibleData()
+            await refreshVisibleData(
+                refreshesPeriodTokenTotals: refreshesPeriodTokenTotals,
+                usesWindowResultCache: usesWindowResultCache)
         }
     }
 
-    func refreshVisibleData() async {
-        await viewModel.refresh()
-        if activeTab == .overview {
+    func refreshVisibleData(
+        refreshesPeriodTokenTotals: Bool = true,
+        usesWindowResultCache: Bool = false) async {
+        await viewModel.refresh(usesWindowResultCache: usesWindowResultCache)
+        if refreshesPeriodTokenTotals, activeTab == .overview {
             await viewModel.refreshPeriodTokenTotalsIfNeeded()
         }
     }

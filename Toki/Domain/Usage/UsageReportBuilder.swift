@@ -195,9 +195,10 @@ private extension UsageReportBuilder {
 
         var buckets = bucketStarts.reduce(into: [Date: UsageTimeBucket]()) { result, bucketStart in
             guard let nextHour = calendar.date(byAdding: .hour, value: 1, to: bucketStart) else { return }
-            result[bucketStart] = .empty(
-                startDate: bucketStart,
-                endDate: min(nextHour, endDate))
+            let clippedStart = max(bucketStart, startDate)
+            let clippedEnd = min(nextHour, endDate)
+            guard clippedStart < clippedEnd else { return }
+            result[bucketStart] = .empty(startDate: clippedStart, endDate: clippedEnd)
         }
 
         for event in events where event.timestamp >= startDate && event.timestamp < endDate {

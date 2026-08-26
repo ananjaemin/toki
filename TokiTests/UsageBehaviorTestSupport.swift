@@ -32,6 +32,62 @@ struct ConditionalBlockingMockReader: TokenReader {
     }
 }
 
+struct CancellableUsageRequestSnapshot {
+    let requestCount: Int
+    let cancellationCount: Int
+}
+
+actor CancellableUsageRequestTracker {
+    private var requestCount = 0
+    private var cancellationCount = 0
+    private var requestWaiters: [(target: Int, continuation: CheckedContinuation<Void, Never>)] = []
+
+    func beginRequest() -> Int {
+        requestCount += 1
+        let ready = requestWaiters.filter { requestCount >= $0.target }
+        requestWaiters.removeAll { requestCount >= $0.target }
+        ready.forEach { $0.continuation.resume() }
+        return requestCount
+    }
+
+    func recordCancellation() {
+        cancellationCount += 1
+    }
+
+    func waitForRequestCount(_ target: Int) async {
+        guard requestCount < target else { return }
+        await withCheckedContinuation { continuation in
+            requestWaiters.append((target: target, continuation: continuation))
+        }
+    }
+
+    func snapshot() -> CancellableUsageRequestSnapshot {
+        CancellableUsageRequestSnapshot(
+            requestCount: requestCount,
+            cancellationCount: cancellationCount)
+    }
+}
+
+struct CancellableSequencedReader: TokenReader {
+    let name: String
+    let blockedRequestNumber: Int
+    let tracker: CancellableUsageRequestTracker
+    let handler: @Sendable (Date, Date) -> RawTokenUsage
+
+    func readUsage(from startDate: Date, to endDate: Date) async throws -> RawTokenUsage {
+        let requestNumber = await tracker.beginRequest()
+        if requestNumber == blockedRequestNumber {
+            do {
+                try await Task.sleep(for: .seconds(30))
+            } catch {
+                await tracker.recordCancellation()
+                throw error
+            }
+        }
+        return handler(startDate, endDate)
+    }
+}
+
 actor YesterdayRequestTracker {
     private var requestCount = 0
 

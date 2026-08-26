@@ -1,6 +1,174 @@
 import XCTest
 @testable import Toki
 
+final class UsageServiceRollingWindowTests: XCTestCase {
+    func test_usageService_windowChangeCancelsInFlightLoadAndPublishesLatestWindow() async throws {
+        let suiteName = "UsageServiceRollingWindowTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let now = Date()
+        let rollingStart = now.addingTimeInterval(-24 * 60 * 60)
+        let tracker = CancellableUsageRequestTracker()
+        let reader = CancellableSequencedReader(
+            name: "Mock",
+            blockedRequestNumber: 1,
+            tracker: tracker) { startDate, _ in
+                mockUsage(totalTokens: startDate == rollingStart ? 200 : 100)
+            }
+        let service = await MainActor.run {
+            let settings = UsagePanelSettings(
+                defaults: UserDefaults(suiteName: suiteName)!,
+                readerNames: ["Mock"])
+            return UsageService(
+                readers: [reader],
+                settings: settings,
+                comparisonDebounce: .seconds(30),
+                now: { now })
+        }
+        let initialRefresh = Task { await service.refresh() }
+        await tracker.waitForRequestCount(1)
+
+        await MainActor.run {
+            service.settings.setCurrentUsageWindow(.rolling24Hours)
+            service.handleCurrentUsageWindowChange()
+        }
+        await service.refresh(usesWindowResultCache: true)
+        await initialRefresh.value
+
+        let requestSnapshot = await tracker.snapshot()
+        let usageSnapshot = await MainActor.run { service.presentationSnapshot }
+        XCTAssertEqual(requestSnapshot.requestCount, 2)
+        XCTAssertEqual(requestSnapshot.cancellationCount, 1)
+        XCTAssertEqual(usageSnapshot.combinedUsageData.totalTokens, 200)
+        XCTAssertFalse(usageSnapshot.isLoading)
+        XCTAssertFalse(usageSnapshot.isRefreshing)
+    }
+
+    func test_usageService_cachedWindowRestoresImmediatelyWhileCancelingReplacementLoad() async throws {
+        let suiteName = "UsageServiceRollingWindowTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let now = Date()
+        let tracker = CancellableUsageRequestTracker()
+        let reader = CancellableSequencedReader(
+            name: "Mock",
+            blockedRequestNumber: 2,
+            tracker: tracker) { _, _ in
+                mockUsage(totalTokens: 100)
+            }
+        let service = await MainActor.run {
+            let settings = UsagePanelSettings(
+                defaults: UserDefaults(suiteName: suiteName)!,
+                readerNames: ["Mock"])
+            return UsageService(
+                readers: [reader],
+                settings: settings,
+                comparisonDebounce: .seconds(30),
+                now: { now })
+        }
+        await service.refresh()
+
+        await MainActor.run {
+            service.settings.setCurrentUsageWindow(.rolling24Hours)
+            service.handleCurrentUsageWindowChange()
+        }
+        let rollingRefresh = Task { await service.refresh(usesWindowResultCache: true) }
+        await tracker.waitForRequestCount(2)
+
+        let refreshingSnapshot = await MainActor.run { service.presentationSnapshot }
+        XCTAssertEqual(refreshingSnapshot.combinedUsageData.totalTokens, 100)
+        XCTAssertFalse(refreshingSnapshot.isLoading)
+        XCTAssertTrue(refreshingSnapshot.isRefreshing)
+
+        await MainActor.run {
+            service.settings.setCurrentUsageWindow(.calendarDay)
+            service.handleCurrentUsageWindowChange()
+        }
+        await service.refresh(usesWindowResultCache: true)
+        await rollingRefresh.value
+
+        let requestSnapshot = await tracker.snapshot()
+        let cachedSnapshot = await MainActor.run { service.presentationSnapshot }
+        XCTAssertEqual(requestSnapshot.requestCount, 2)
+        XCTAssertEqual(requestSnapshot.cancellationCount, 1)
+        XCTAssertEqual(cachedSnapshot.combinedUsageData.totalTokens, 100)
+        XCTAssertFalse(cachedSnapshot.isLoading)
+        XCTAssertFalse(cachedSnapshot.isRefreshing)
+    }
+
+    func test_usageService_rollingWindowUsesCurrentAndPrevious24HourIntervals() async throws {
+        let suiteName = "UsageServiceComparisonRefreshTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let now = tokiTestISODate("2026-08-26T12:34:56Z")
+        let recorder = MockReaderRecorder()
+        let reader = MockReader(name: "Mock", recorder: recorder) { _, _ in
+            mockUsage(totalTokens: 120)
+        }
+        let service = await MainActor.run {
+            let settings = UsagePanelSettings(
+                defaults: UserDefaults(suiteName: suiteName)!,
+                readerNames: ["Mock"])
+            settings.setCurrentUsageWindow(.rolling24Hours)
+            return UsageService(
+                readers: [reader],
+                settings: settings,
+                comparisonDebounce: .zero,
+                now: { now })
+        }
+
+        await service.refresh()
+
+        var calls = await recorder.snapshot()
+        for _ in 0..<20 where calls.count < 2 {
+            try? await Task.sleep(for: .milliseconds(10))
+            calls = await recorder.snapshot()
+        }
+
+        let currentStart = now.addingTimeInterval(-24 * 60 * 60)
+        let previousStart = currentStart.addingTimeInterval(-24 * 60 * 60)
+        XCTAssertEqual(calls.count, 2)
+        XCTAssertEqual(calls[0].start, currentStart)
+        XCTAssertEqual(calls[0].end, now)
+        XCTAssertEqual(calls[1].start, previousStart)
+        XCTAssertEqual(calls[1].end, currentStart)
+    }
+
+    func test_usageService_rollingSettingKeepsPastSelectionCalendarAligned() async throws {
+        let suiteName = "UsageServiceComparisonRefreshTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let now = Date()
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now)
+        let pastDay = try XCTUnwrap(calendar.date(byAdding: .day, value: -2, to: today))
+        let pastEnd = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: pastDay))
+        let recorder = MockReaderRecorder()
+        let reader = MockReader(name: "Mock", recorder: recorder) { _, _ in
+            mockUsage(totalTokens: 120)
+        }
+        let service = await MainActor.run {
+            let settings = UsagePanelSettings(
+                defaults: UserDefaults(suiteName: suiteName)!,
+                readerNames: ["Mock"])
+            settings.setCurrentUsageWindow(.rolling24Hours)
+            let service = UsageService(
+                readers: [reader],
+                settings: settings,
+                now: { now })
+            service.selectDay(pastDay)
+            return service
+        }
+
+        await service.refresh()
+
+        let calls = await recorder.snapshot()
+        XCTAssertEqual(calls.count, 1)
+        XCTAssertEqual(calls[0].start, pastDay)
+        XCTAssertEqual(calls[0].end, pastEnd)
+    }
+}
+
 final class UsageServiceComparisonRefreshTests: XCTestCase {
     func test_usageService_yesterdayComparisonUsesLightweightTotalTokenPath() async throws {
         let recorder = LightweightUsageRecorder()
@@ -135,7 +303,9 @@ final class UsageServiceComparisonRefreshTests: XCTestCase {
             mockUsage(totalTokens: 100)
         }
 
-        let service = await MainActor.run { UsageService(readers: [reader]) }
+        let service = await MainActor.run {
+            UsageService(readers: [reader], comparisonDebounce: .zero)
+        }
         await MainActor.run { service.selectDay(pastDay) }
         let initialRefresh = Task { await service.refresh() }
 

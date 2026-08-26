@@ -9,6 +9,7 @@ private final class StatusItemActionTarget: NSObject {
 final class PanelUXBehaviorTests: XCTestCase {
     func test_menuBarUsageSummary_formatsTitleAndToolTip() {
         let summary = MenuBarUsageSummary(
+            currentUsageWindow: .calendarDay,
             totalTokens: 1_234_000,
             cost: 4.2,
             hasUnpricedUsage: false,
@@ -25,6 +26,7 @@ final class PanelUXBehaviorTests: XCTestCase {
 
     func test_menuBarUsageSummary_marksIncompleteCostWhenUsageIsUnpriced() {
         let summary = MenuBarUsageSummary(
+            currentUsageWindow: .calendarDay,
             totalTokens: 1_234_000,
             cost: 4.2,
             hasUnpricedUsage: true,
@@ -36,6 +38,7 @@ final class PanelUXBehaviorTests: XCTestCase {
 
     func test_menuBarUsageSummary_marksIncompleteCostWhenReadersFail() {
         let summary = MenuBarUsageSummary(
+            currentUsageWindow: .calendarDay,
             totalTokens: 1_234_000,
             cost: 4.2,
             hasUnpricedUsage: false,
@@ -43,6 +46,17 @@ final class PanelUXBehaviorTests: XCTestCase {
 
         XCTAssertEqual(menuBarUsageSummaryTitle(for: summary), "~\(4.2.formattedCost())")
         XCTAssertTrue(menuBarUsageToolTip(for: summary).contains("excludes data from failed readers"))
+    }
+
+    func test_menuBarUsageSummary_usesRollingWindowLabel() {
+        let summary = MenuBarUsageSummary(
+            currentUsageWindow: .rolling24Hours,
+            totalTokens: 1234,
+            cost: 0.5,
+            hasUnpricedUsage: false,
+            hasReaderFailures: false)
+
+        XCTAssertTrue(menuBarUsageToolTip(for: summary).hasPrefix("Toki — Last 24 Hours: "))
     }
 
     func test_menuBarUsageContainsUnpricedModels_ignoresEmptyModelsAndDetectsAttributionGaps() {
@@ -115,6 +129,13 @@ final class PanelUXBehaviorTests: XCTestCase {
         XCTAssertFalse(PanelProjectExpansionPolicy.shouldShowCollapseControl(
             isExpanded: false,
             collapsedHiddenProjectCount: 3))
+    }
+
+    func test_usageUpdating_coversInitialAndBackgroundRefreshes() {
+        XCTAssertFalse(panelUsageIsUpdating(isLoading: false, isRefreshing: false))
+        XCTAssertTrue(panelUsageIsUpdating(isLoading: true, isRefreshing: false))
+        XCTAssertTrue(panelUsageIsUpdating(isLoading: false, isRefreshing: true))
+        XCTAssertTrue(panelUsageIsUpdating(isLoading: true, isRefreshing: true))
     }
 
     @MainActor

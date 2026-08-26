@@ -8,6 +8,7 @@ struct PanelSourceView: View {
     let scopeTitle: String
     let readerStatuses: [ReaderStatus]
     let isLoading: Bool
+    let isRefreshing: Bool
     let onSelectOrigin: (UsageOriginID) -> Void
 
     @State private var copiedFormat: UsageExportFormat?
@@ -27,6 +28,9 @@ struct PanelSourceView: View {
                 if selectedScope == .all, originReports.count > 1 {
                     PanelDeviceBreakdownView(
                         reports: originReports,
+                        isUpdating: panelUsageIsUpdating(
+                            isLoading: isLoading,
+                            isRefreshing: isRefreshing),
                         onSelect: onSelectOrigin)
                 }
 
@@ -130,15 +134,20 @@ func panelReaderFailureNames(
     readerFailureNames(from: panelReaderStatuses(statuses, for: scope))
 }
 
+func panelUsageIsUpdating(isLoading: Bool, isRefreshing: Bool) -> Bool {
+    isLoading || isRefreshing
+}
+
 struct PanelDeviceBreakdownView: View {
     let reports: [UsageOriginReport]
+    let isUpdating: Bool
     let onSelect: (UsageOriginID) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
             PanelSectionCaption(title: "By Device")
             ForEach(reports) { report in
-                PanelDeviceUsageRow(report: report) {
+                PanelDeviceUsageRow(report: report, isUpdating: isUpdating) {
                     onSelect(report.id)
                 }
             }
@@ -148,6 +157,7 @@ struct PanelDeviceBreakdownView: View {
 
 private struct PanelDeviceUsageRow: View {
     let report: UsageOriginReport
+    let isUpdating: Bool
     let onSelect: () -> Void
 
     var body: some View {
@@ -162,32 +172,41 @@ private struct PanelDeviceUsageRow: View {
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(Color.white.opacity(0.62))
                         .lineLimit(1)
-                    Text(statusText)
+                    Text(isUpdating ? "Updating…" : statusText)
                         .font(.system(size: 9, weight: .medium))
                         .foregroundColor(Color.white.opacity(0.3))
                         .lineLimit(1)
                 }
                 Spacer(minLength: 4)
-                Text(report.usageData.totalTokens.formattedTokens())
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundColor(Color.white.opacity(0.7))
-                    .frame(width: 44, alignment: .trailing)
-                Text(report.usageData.cost > 0 ? report.usageData.cost.formattedCost() : "—")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundColor(
-                        report.usageData.cost > 0
-                            ? Color(red: 0.4, green: 0.9, blue: 0.6)
-                            : Color.white.opacity(0.25))
-                    .frame(width: 56, alignment: .trailing)
-                    .lineLimit(1)
+                if isUpdating {
+                    SkeletonBar(width: 44, height: 11)
+                        .frame(width: 44, alignment: .trailing)
+                    SkeletonBar(width: 48, height: 11)
+                        .frame(width: 56, alignment: .trailing)
+                } else {
+                    Text(report.usageData.totalTokens.formattedTokens())
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundColor(Color.white.opacity(0.7))
+                        .frame(width: 44, alignment: .trailing)
+                    Text(report.usageData.cost > 0 ? report.usageData.cost.formattedCost() : "—")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundColor(
+                            report.usageData.cost > 0
+                                ? Color(red: 0.4, green: 0.9, blue: 0.6)
+                                : Color.white.opacity(0.25))
+                        .frame(width: 56, alignment: .trailing)
+                        .lineLimit(1)
+                }
             }
             .contentShape(Rectangle())
             .padding(.horizontal, 16)
             .padding(.vertical, 7)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(Text(accessibilityLabel))
-        .accessibilityHint(Text("Show usage from this device"))
+        .disabled(isUpdating)
+        .accessibilityLabel(Text(isUpdating ? updatingAccessibilityLabel : accessibilityLabel))
+        .accessibilityHint(
+            Text(isUpdating ? "Usage is being refreshed" : "Show usage from this device"))
     }
 
     private var statusText: String {
@@ -211,6 +230,10 @@ private struct PanelDeviceUsageRow: View {
     private var accessibilityLabel: String {
         "\(report.origin.name), \(panelDevicePlatformLabel(for: report.origin)), "
             + "\(report.usageData.totalTokens) tokens, \(report.usageData.cost.formattedCost())"
+    }
+
+    private var updatingAccessibilityLabel: String {
+        "\(report.origin.name), updating usage"
     }
 
     private static let relativeDateFormatter: RelativeDateTimeFormatter = {

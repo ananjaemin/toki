@@ -171,8 +171,11 @@ final class UsageServiceComparisonRefreshTests: XCTestCase {
 
         let totalTokens = await MainActor.run { service.usageData.totalTokens }
         let selectedStart = await MainActor.run { service.startDate }
+        let loadingSnapshot = await MainActor.run { service.presentationSnapshot }
         XCTAssertEqual(totalTokens, 0)
         XCTAssertEqual(selectedStart, secondDay)
+        XCTAssertFalse(loadingSnapshot.isLoading)
+        XCTAssertFalse(loadingSnapshot.isRefreshing)
     }
 
     func test_usageService_lastSelectionWinsWhenRangeChangesRepeatedlyDuringLoad() async throws {

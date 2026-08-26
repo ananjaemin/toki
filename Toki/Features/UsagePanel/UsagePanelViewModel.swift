@@ -22,6 +22,11 @@ final class UsagePanelViewModel: ObservableObject {
     @Published var endDate: Date
     @Published var isRangeMode = false {
         didSet {
+            guard oldValue != isRangeMode else { return }
+            cancelActiveUsageRefresh()
+            resetYesterdayComparison()
+            presentedUsageRequest = nil
+            presentedUsageWindow = nil
             if isRangeMode {
                 followsCurrentDaySelection = false
             }
@@ -377,7 +382,8 @@ private extension UsagePanelViewModel {
             request: cachedEntry.request,
             fetchedAt: cachedEntry.fetchedAt,
             previousTotalTokens: previousTotalTokens,
-            currentUsageWindow: selectedCurrentUsageWindow)
+            currentUsageWindow: selectedCurrentUsageWindow,
+            resolvesMissingScope: false)
         updateSnapshot {
             $0.isLoading = false
             $0.isRefreshing = true
@@ -403,6 +409,10 @@ private extension UsagePanelViewModel {
         activeUsageTask?.cancel()
         activeUsageTask = nil
         activeRefreshIdentity = nil
+        updateSnapshot {
+            $0.isLoading = false
+            $0.isRefreshing = false
+        }
     }
 
     private func finishCanceledUsageRefresh(generation: UInt64) {
@@ -434,9 +444,11 @@ private extension UsagePanelViewModel {
         request: UsageAggregationRequest,
         fetchedAt: Date,
         previousTotalTokens: Int?,
-        currentUsageWindow: CurrentUsageWindow?) -> Bool {
-        let didFallBackToAllDevices = resolveSelectedUsageScope(
-            availableReports: result.originReports)
+        currentUsageWindow: CurrentUsageWindow?,
+        resolvesMissingScope: Bool = true) -> Bool {
+        let didFallBackToAllDevices = resolvesMissingScope
+            ? resolveSelectedUsageScope(availableReports: result.originReports)
+            : false
         updateSnapshot {
             $0.combinedUsageData = result.usageData
             $0.combinedModelReports = result.modelReports

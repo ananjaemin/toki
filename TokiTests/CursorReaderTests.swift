@@ -180,8 +180,12 @@ final class CursorReaderUsageTests: XCTestCase {
         XCTAssertFalse(usage.supplemental.contains { $0.label == "Cursor Sessions" })
         XCTAssertFalse(usage.supplemental.contains { $0.label == "Cursor Reported Cost" })
     }
+}
 
-    func test_cursorReader_includesLiveComposerContextOnlyForCurrentDayOrRollingWindow() {
+final class CursorReaderLiveContextTests: XCTestCase {
+    func test_cursorReader_includesLiveComposerContextOnlyForCurrentDayOrRollingWindow() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
         let now = tokiTestISODate("2026-04-10T12:00:00Z")
         let todayStart = tokiTestISODate("2026-04-10T00:00:00Z")
         let tomorrowStart = tokiTestISODate("2026-04-11T00:00:00Z")
@@ -193,27 +197,47 @@ final class CursorReaderUsageTests: XCTestCase {
             CursorReader.shouldIncludeLiveComposerContext(
                 from: todayStart,
                 to: tomorrowStart,
-                now: now))
+                now: now,
+                calendar: calendar))
         XCTAssertFalse(
             CursorReader.shouldIncludeLiveComposerContext(
                 from: yesterdayStart,
                 to: todayStart,
-                now: now))
+                now: now,
+                calendar: calendar))
         XCTAssertFalse(
             CursorReader.shouldIncludeLiveComposerContext(
                 from: todayStart,
                 to: twoDaysLater,
-                now: now))
+                now: now,
+                calendar: calendar))
         XCTAssertFalse(
             CursorReader.shouldIncludeLiveComposerContext(
                 from: tomorrowStart,
                 to: twoDaysLater,
-                now: now))
+                now: now,
+                calendar: calendar))
         XCTAssertTrue(
             CursorReader.shouldIncludeLiveComposerContext(
                 from: rollingStart,
                 to: now,
-                now: now))
+                now: now,
+                calendar: calendar))
+
+        XCTAssertFalse(
+            CursorReader.shouldIncludeLiveComposerContext(
+                from: now.addingTimeInterval(-60 * 60),
+                to: now.addingTimeInterval(60 * 60),
+                now: now,
+                calendar: calendar))
+
+        let justAfterMidnight = tokiTestISODate("2026-04-11T00:00:30Z")
+        XCTAssertFalse(
+            CursorReader.shouldIncludeLiveComposerContext(
+                from: todayStart,
+                to: tomorrowStart,
+                now: justAfterMidnight,
+                calendar: calendar))
     }
 }
 

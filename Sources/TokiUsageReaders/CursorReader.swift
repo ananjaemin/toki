@@ -268,17 +268,25 @@ extension CursorReader {
     static func shouldIncludeLiveComposerContext(
         from startDate: Date,
         to endDate: Date,
-        now: Date = Date()) -> Bool {
+        now: Date = Date(),
+        calendar: Calendar = .autoupdatingCurrent) -> Bool {
         // Date-ranged totals come from append-only bubble rows. The mutable
         // composer snapshot is only safe to show as a live context overlay.
-        let maximumCurrentWindowDuration: TimeInterval = 25 * 60 * 60
+        let rollingWindowDuration: TimeInterval = 24 * 60 * 60
         let currentReadTolerance: TimeInterval = 60
         let duration = endDate.timeIntervalSince(startDate)
-        let containsCurrentTime = startDate <= now
-            && (endDate > now || now.timeIntervalSince(endDate) <= currentReadTolerance)
-        return duration > 0
-            && duration <= maximumCurrentWindowDuration
-            && containsCurrentTime
+        let currentDayStart = calendar.startOfDay(for: now)
+        let currentDayEnd = calendar.date(byAdding: .day, value: 1, to: currentDayStart)
+        let isCurrentCalendarDay = startDate == currentDayStart && endDate == currentDayEnd
+
+        let intervalDayStart = calendar.startOfDay(for: startDate)
+        let intervalDayEnd = calendar.date(byAdding: .day, value: 1, to: intervalDayStart)
+        let isCompleteCalendarDay = startDate == intervalDayStart && endDate == intervalDayEnd
+        let isCurrentRollingWindow = abs(duration - rollingWindowDuration) < 1
+            && abs(endDate.timeIntervalSince(now)) <= currentReadTolerance
+            && !isCompleteCalendarDay
+
+        return isCurrentCalendarDay || isCurrentRollingWindow
     }
 }
 

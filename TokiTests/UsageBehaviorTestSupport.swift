@@ -72,7 +72,7 @@ struct CancellableSequencedReader: TokenReader {
     let name: String
     let blockedRequestNumbers: Set<Int>
     let tracker: CancellableUsageRequestTracker
-    let handler: @Sendable (Date, Date) -> RawTokenUsage
+    let handler: @Sendable (Int, Date, Date) -> RawTokenUsage
 
     init(
         name: String,
@@ -83,7 +83,7 @@ struct CancellableSequencedReader: TokenReader {
             name: name,
             blockedRequestNumbers: [blockedRequestNumber],
             tracker: tracker,
-            handler: handler)
+            requestHandler: { _, startDate, endDate in handler(startDate, endDate) })
     }
 
     init(
@@ -91,10 +91,22 @@ struct CancellableSequencedReader: TokenReader {
         blockedRequestNumbers: Set<Int>,
         tracker: CancellableUsageRequestTracker,
         handler: @escaping @Sendable (Date, Date) -> RawTokenUsage) {
+        self.init(
+            name: name,
+            blockedRequestNumbers: blockedRequestNumbers,
+            tracker: tracker,
+            requestHandler: { _, startDate, endDate in handler(startDate, endDate) })
+    }
+
+    init(
+        name: String,
+        blockedRequestNumbers: Set<Int>,
+        tracker: CancellableUsageRequestTracker,
+        requestHandler: @escaping @Sendable (Int, Date, Date) -> RawTokenUsage) {
         self.name = name
         self.blockedRequestNumbers = blockedRequestNumbers
         self.tracker = tracker
-        self.handler = handler
+        handler = requestHandler
     }
 
     func readUsage(from startDate: Date, to endDate: Date) async throws -> RawTokenUsage {
@@ -107,7 +119,7 @@ struct CancellableSequencedReader: TokenReader {
                 throw error
             }
         }
-        return handler(startDate, endDate)
+        return handler(requestNumber, startDate, endDate)
     }
 }
 

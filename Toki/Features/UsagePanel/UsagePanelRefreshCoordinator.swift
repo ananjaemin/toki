@@ -80,6 +80,7 @@ final class UsageWindowResultCache {
 final class UsagePanelRefreshCoordinator {
     private var refreshLoopTask: Task<Void, Never>?
     private var settingsRefreshTask: Task<Void, Never>?
+    private var settingsRefreshGeneration: UInt64 = 0
     private var pendingRefreshesPeriodTokenTotals = false
     private var pendingUsesWindowResultCache = true
 
@@ -113,21 +114,25 @@ final class UsagePanelRefreshCoordinator {
             pendingUsesWindowResultCache = pendingUsesWindowResultCache && usesWindowResultCache
         }
         settingsRefreshTask?.cancel()
+        settingsRefreshGeneration &+= 1
+        let generation = settingsRefreshGeneration
         settingsRefreshTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(150))
             guard !Task.isCancelled else { return }
             let refreshesPeriodTokenTotals = pendingRefreshesPeriodTokenTotals
             let usesWindowResultCache = pendingUsesWindowResultCache
+            await refresh(refreshesPeriodTokenTotals, usesWindowResultCache)
+            guard generation == settingsRefreshGeneration else { return }
             settingsRefreshTask = nil
             pendingRefreshesPeriodTokenTotals = false
             pendingUsesWindowResultCache = true
-            await refresh(refreshesPeriodTokenTotals, usesWindowResultCache)
         }
     }
 
     func cancel() {
         refreshLoopTask?.cancel()
         settingsRefreshTask?.cancel()
+        settingsRefreshGeneration &+= 1
         refreshLoopTask = nil
         settingsRefreshTask = nil
         pendingRefreshesPeriodTokenTotals = false

@@ -224,6 +224,27 @@ final class PanelUXBehaviorTests: XCTestCase {
 
 final class UsagePanelRefreshCoordinatorTests: XCTestCase {
     @MainActor
+    func test_cancelStopsRunningSettingsRefresh() async {
+        let coordinator = UsagePanelRefreshCoordinator()
+        let started = expectation(description: "Settings refresh started")
+        let canceled = expectation(description: "Settings refresh canceled")
+        coordinator.scheduleSettingsRefresh(
+            refreshesPeriodTokenTotals: true,
+            usesWindowResultCache: false) { _, _ in
+                started.fulfill()
+                do {
+                    try await Task.sleep(for: .seconds(30))
+                } catch {
+                    canceled.fulfill()
+                }
+            }
+
+        await fulfillment(of: [started], timeout: 1)
+        coordinator.cancel()
+        await fulfillment(of: [canceled], timeout: 1)
+    }
+
+    @MainActor
     func test_settingsRefreshMergesPendingRefreshRequirements() async {
         let coordinator = UsagePanelRefreshCoordinator()
         let refreshed = expectation(description: "Merged settings refresh")

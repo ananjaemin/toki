@@ -2,6 +2,17 @@ import XCTest
 @testable import Toki
 
 final class UsageServiceDateSyncBehaviorTests: XCTestCase {
+    func test_usageService_ignoresWindowChangesForPastSelection() async throws {
+        let service = await MainActor.run { UsageService(readers: []) }
+        let pastDay = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -2, to: Date()))
+        let handled = await MainActor.run { () -> Bool in
+            service.selectDay(pastDay)
+            return service.handleCurrentUsageWindowChange()
+        }
+
+        XCTAssertFalse(handled)
+    }
+
     func test_currentUsageWindow_resolvesCalendarDayAndExactRollingDuration() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))

@@ -1,7 +1,73 @@
 import XCTest
 @testable import Toki
 
+// swiftlint:disable file_length
+
+@MainActor
+private final class UsageTestClock {
+    var now: Date
+
+    init(now: Date) {
+        self.now = now
+    }
+}
+
 final class UsageServiceRefreshLifecycleTests: XCTestCase {
+    func test_usageService_dateSelectionClearsPreviouslyPresentedUsage() async throws {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let firstDay = try XCTUnwrap(calendar.date(byAdding: .day, value: -2, to: today))
+        let secondDay = try XCTUnwrap(calendar.date(byAdding: .day, value: -1, to: today))
+        let reader = MockReader(name: "Mock", recorder: MockReaderRecorder()) { _, _ in
+            mockUsage(totalTokens: 100)
+        }
+        let service = await MainActor.run { UsageService(readers: [reader]) }
+        await MainActor.run { service.selectDay(firstDay) }
+        await service.refresh()
+
+        await MainActor.run { service.selectDay(secondDay) }
+
+        let snapshot = await MainActor.run { service.presentationSnapshot }
+        XCTAssertEqual(snapshot.combinedUsageData.totalTokens, 0)
+        XCTAssertTrue(snapshot.originReports.isEmpty)
+        XCTAssertNil(snapshot.lastFetchedAt)
+    }
+
+    @MainActor
+    func test_usageService_overlappingRollingRefreshesCoalesce() async throws {
+        let suiteName = "UsageServiceRollingWindowTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let tracker = CancellableUsageRequestTracker()
+        let reader = CancellableSequencedReader(
+            name: "Mock",
+            blockedRequestNumber: 1,
+            tracker: tracker) { _, _ in
+                mockUsage(totalTokens: 100)
+            }
+        let clock = UsageTestClock(now: Date())
+        let settings = try UsagePanelSettings(
+            defaults: XCTUnwrap(UserDefaults(suiteName: suiteName)),
+            readerNames: ["Mock"])
+        settings.setCurrentUsageWindow(.rolling24Hours)
+        let service = UsageService(
+            readers: [reader],
+            settings: settings,
+            comparisonDebounce: .seconds(30),
+            now: { clock.now })
+        let initialRefresh = Task { await service.refresh() }
+        await tracker.waitForRequestCount(1)
+
+        clock.now = clock.now.addingTimeInterval(60)
+        await service.refresh()
+
+        let overlappingSnapshot = await tracker.snapshot()
+        XCTAssertEqual(overlappingSnapshot.requestCount, 1)
+        XCTAssertEqual(overlappingSnapshot.cancellationCount, 0)
+        initialRefresh.cancel()
+        await initialRefresh.value
+    }
+
     func test_usageService_rangeModeClearsPresentedRollingWindow() async throws {
         let suiteName = "UsageServiceRollingWindowTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
@@ -117,9 +183,10 @@ final class UsageServiceRollingWindowTests: XCTestCase {
         let reader = CancellableSequencedReader(
             name: "Mock",
             blockedRequestNumbers: [2, 3],
-            tracker: tracker) { _, _ in
-                mockUsage(totalTokens: 100)
-            }
+            tracker: tracker,
+            requestHandler: { requestNumber, _, _ in
+                mockUsage(totalTokens: requestNumber == 1 ? 100 : 999)
+            })
         let service = await MainActor.run {
             let settings = UsagePanelSettings(
                 defaults: UserDefaults(suiteName: suiteName)!,
@@ -195,19 +262,18 @@ final class UsageServiceRollingWindowTests: XCTestCase {
 
         await service.refresh()
 
-        var calls = await recorder.snapshot()
-        for _ in 0..<20 where calls.count < 2 {
-            try? await Task.sleep(for: .milliseconds(10))
-            calls = await recorder.snapshot()
-        }
+        await recorder.waitForCallCount(2)
+        let calls = await recorder.snapshot()
 
         let currentStart = now.addingTimeInterval(-24 * 60 * 60)
         let previousStart = currentStart.addingTimeInterval(-24 * 60 * 60)
         XCTAssertEqual(calls.count, 2)
-        XCTAssertEqual(calls[0].start, currentStart)
-        XCTAssertEqual(calls[0].end, now)
-        XCTAssertEqual(calls[1].start, previousStart)
-        XCTAssertEqual(calls[1].end, currentStart)
+        let currentCall = try XCTUnwrap(calls.first)
+        let previousCall = try XCTUnwrap(calls.dropFirst().first)
+        XCTAssertEqual(currentCall.start, currentStart)
+        XCTAssertEqual(currentCall.end, now)
+        XCTAssertEqual(previousCall.start, previousStart)
+        XCTAssertEqual(previousCall.end, currentStart)
     }
 
     func test_usageService_rollingSettingKeepsPastSelectionCalendarAligned() async throws {

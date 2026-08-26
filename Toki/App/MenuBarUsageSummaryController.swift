@@ -161,7 +161,7 @@ final class MenuBarUsageSummaryController {
                 end: interval.end,
                 enabledReaderNames: settings.normalizedReaderSettings(for: aggregator.readerNames),
                 includesEmptySourceRows: false,
-                includesLiveContext: true)
+                liveContextWindow: window == .rolling24Hours ? .rolling24Hours : .calendarDay)
             let result = await aggregator.aggregateUsage(for: request)
             return MenuBarUsageSummary(
                 currentUsageWindow: window,

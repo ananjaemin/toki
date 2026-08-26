@@ -96,7 +96,7 @@ struct UsagePanelView: View {
             scheduleSettingsRefresh()
         }
         .onReceive(viewModel.settings.$currentUsageWindow.dropFirst()) { _ in
-            viewModel.handleCurrentUsageWindowChange()
+            guard viewModel.handleCurrentUsageWindowChange() else { return }
             scheduleSettingsRefresh(
                 refreshesPeriodTokenTotals: false,
                 usesWindowResultCache: true)

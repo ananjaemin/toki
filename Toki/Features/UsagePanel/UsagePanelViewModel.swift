@@ -153,12 +153,14 @@ final class UsagePanelViewModel: ObservableObject {
     func refresh(usesWindowResultCache: Bool = false) async {
         let refreshNow = now()
         syncSelectionWithTodayIfNeeded(now: refreshNow)
-        let refreshIdentity = makeUsageRefreshIdentity()
         let request = makeUsageRequest(
             start: startDate,
             end: endDate,
             now: refreshNow)
-        let previousTotalTokens = snapshot.yesterdayTotalTokens
+        let refreshIdentity = makeUsageRefreshIdentity(request: request)
+        var previousTotalTokens = presentedUsageRequest == request && canCachePreviousComparison
+            ? snapshot.yesterdayTotalTokens
+            : nil
 
         if activeUsageTask != nil {
             guard activeRefreshIdentity != refreshIdentity else { return }
@@ -169,24 +171,12 @@ final class UsagePanelViewModel: ObservableObject {
         let cacheKey = makeUsageWindowResultCacheKey()
         if usesWindowResultCache,
            let cacheKey,
-           let cachedEntry = usageWindowResultCache.entry(for: cacheKey) {
-            let cachedPreviousTotalTokens = canCachePreviousComparison
-                ? cachedEntry.previousTotalTokens
-                : nil
-            let didFallBackToAllDevices = publishUsageResult(
-                cachedEntry.result,
-                request: cachedEntry.request,
-                fetchedAt: cachedEntry.fetchedAt,
-                previousTotalTokens: cachedPreviousTotalTokens)
-            if cachedPreviousTotalTokens == nil {
-                startYesterdayComparison(
-                    for: cachedEntry.request,
-                    scope: selectedUsageScope,
-                    modelScope: selectedModelScope,
-                    cacheKey: canCachePreviousComparison ? cacheKey : nil)
-            }
-            refreshPeriodTokenTotalsAfterScopeFallbackIfNeeded(didFallBackToAllDevices)
-            return
+           let cachedResult = publishCachedUsage(
+               for: request,
+               cacheKey: cacheKey,
+               now: refreshNow) {
+            previousTotalTokens = cachedResult.previousTotalTokens ?? previousTotalTokens
+            refreshPeriodTokenTotalsAfterScopeFallbackIfNeeded(cachedResult.didFallBackToAllDevices)
         }
 
         usageRefreshGeneration &+= 1
@@ -198,15 +188,23 @@ final class UsagePanelViewModel: ObservableObject {
         }
         let usageTask = Task { await aggregator.aggregateUsage(for: request) }
         activeUsageTask = usageTask
-        let result = await usageTask.value
+        let result = await withTaskCancellationHandler {
+            await usageTask.value
+        } onCancel: {
+            usageTask.cancel()
+        }
 
-        guard !usageTask.isCancelled,
+        guard !Task.isCancelled,
+              !usageTask.isCancelled,
               generation == usageRefreshGeneration,
-              refreshIdentity == makeUsageRefreshIdentity() else { return }
+              activeRefreshIdentity == refreshIdentity else {
+            finishCanceledUsageRefresh(generation: generation)
+            return
+        }
 
         activeUsageTask = nil
         activeRefreshIdentity = nil
-        let fetchedAt = Date()
+        let fetchedAt = now()
         let didFallBackToAllDevices = publishUsageResult(
             result,
             request: request,
@@ -219,7 +217,8 @@ final class UsagePanelViewModel: ObservableObject {
                     result: result,
                     fetchedAt: fetchedAt,
                     previousTotalTokens: previousTotalTokens),
-                for: cacheKey)
+                for: cacheKey,
+                now: fetchedAt)
         }
 
         if shouldCompareAgainstYesterday(start: request.start, end: request.end) {
@@ -350,6 +349,26 @@ extension UsagePanelViewModel {
 }
 
 private extension UsagePanelViewModel {
+    func publishCachedUsage(
+        for request: UsageAggregationRequest,
+        cacheKey: UsageWindowResultCacheKey,
+        now: Date) -> (previousTotalTokens: Int?, didFallBackToAllDevices: Bool)? {
+        guard let cachedEntry = usageWindowResultCache.entry(for: cacheKey, now: now) else { return nil }
+        let previousTotalTokens = canCachePreviousComparison && cachedEntry.request == request
+            ? cachedEntry.previousTotalTokens
+            : nil
+        let didFallBackToAllDevices = publishUsageResult(
+            cachedEntry.result,
+            request: cachedEntry.request,
+            fetchedAt: cachedEntry.fetchedAt,
+            previousTotalTokens: previousTotalTokens)
+        updateSnapshot {
+            $0.isLoading = false
+            $0.isRefreshing = true
+        }
+        return (previousTotalTokens, didFallBackToAllDevices)
+    }
+
     var isShowingCurrentUsageWindow: Bool {
         !isRangeMode && followsCurrentDaySelection && isSingleDay
     }
@@ -363,6 +382,16 @@ private extension UsagePanelViewModel {
         activeUsageTask?.cancel()
         activeUsageTask = nil
         activeRefreshIdentity = nil
+    }
+
+    private func finishCanceledUsageRefresh(generation: UInt64) {
+        guard generation == usageRefreshGeneration else { return }
+        activeUsageTask = nil
+        activeRefreshIdentity = nil
+        updateSnapshot {
+            $0.isLoading = false
+            $0.isRefreshing = false
+        }
     }
 
     private func makeUsageWindowResultCacheKey() -> UsageWindowResultCacheKey? {
@@ -415,10 +444,12 @@ private extension UsagePanelViewModel {
         }
     }
 
-    private func makeUsageRefreshIdentity() -> UsageRefreshIdentity {
+    private func makeUsageRefreshIdentity(request: UsageAggregationRequest) -> UsageRefreshIdentity {
         UsageRefreshIdentity(
             selectionStart: startDate,
             selectionEnd: endDate,
+            requestStart: request.start,
+            requestEnd: request.end,
             isRangeMode: isRangeMode,
             currentUsageWindow: currentUsageWindowForPresentation,
             enabledReaderNames: settings.normalizedReaderSettings(for: readerNames),
@@ -509,7 +540,8 @@ private extension UsagePanelViewModel {
             if let cacheKey {
                 usageWindowResultCache.storePreviousTotalTokens(
                     previousTotalTokens,
-                    for: cacheKey)
+                    for: cacheKey,
+                    matching: request)
             }
             yesterdayComparisonTask = nil
         }

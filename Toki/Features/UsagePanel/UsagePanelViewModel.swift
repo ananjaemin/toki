@@ -25,8 +25,7 @@ final class UsagePanelViewModel: ObservableObject {
             guard oldValue != isRangeMode else { return }
             cancelActiveUsageRefresh()
             resetYesterdayComparison()
-            presentedUsageRequest = nil
-            presentedUsageWindow = nil
+            clearPresentedUsage()
             if isRangeMode {
                 followsCurrentDaySelection = false
             }
@@ -369,6 +368,21 @@ extension UsagePanelViewModel {
 }
 
 private extension UsagePanelViewModel {
+    func clearPresentedUsage() {
+        presentedUsageRequest = nil
+        presentedUsageWindow = nil
+        updateSnapshot {
+            $0.combinedUsageData = .empty
+            $0.combinedModelReports = [:]
+            $0.originReports = []
+            $0.readerStatuses = []
+            $0.lastFetchedAt = nil
+            $0.yesterdayTotalTokens = nil
+            $0.isLoading = false
+            $0.isRefreshing = false
+        }
+    }
+
     func publishCachedUsage(
         for request: UsageAggregationRequest,
         cacheKey: UsageWindowResultCacheKey,

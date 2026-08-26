@@ -181,12 +181,13 @@ final class CursorReaderUsageTests: XCTestCase {
         XCTAssertFalse(usage.supplemental.contains { $0.label == "Cursor Reported Cost" })
     }
 
-    func test_cursorReader_includesLiveComposerContextOnlyForTodaySingleDay() {
+    func test_cursorReader_includesLiveComposerContextOnlyForCurrentDayOrRollingWindow() {
         let now = tokiTestISODate("2026-04-10T12:00:00Z")
         let todayStart = tokiTestISODate("2026-04-10T00:00:00Z")
         let tomorrowStart = tokiTestISODate("2026-04-11T00:00:00Z")
         let yesterdayStart = tokiTestISODate("2026-04-09T00:00:00Z")
         let twoDaysLater = tokiTestISODate("2026-04-12T00:00:00Z")
+        let rollingStart = tokiTestISODate("2026-04-09T12:00:00Z")
 
         XCTAssertTrue(
             CursorReader.shouldIncludeLiveComposerContext(
@@ -207,6 +208,11 @@ final class CursorReaderUsageTests: XCTestCase {
             CursorReader.shouldIncludeLiveComposerContext(
                 from: tomorrowStart,
                 to: twoDaysLater,
+                now: now))
+        XCTAssertTrue(
+            CursorReader.shouldIncludeLiveComposerContext(
+                from: rollingStart,
+                to: now,
                 now: now))
     }
 }

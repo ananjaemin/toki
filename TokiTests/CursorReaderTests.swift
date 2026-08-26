@@ -183,6 +183,31 @@ final class CursorReaderUsageTests: XCTestCase {
 }
 
 final class CursorReaderLiveContextTests: XCTestCase {
+    func test_cursorReader_includesComposerUpdatedAfterRequestEndWhenReadLater() {
+        let requestEnd = tokiTestISODate("2026-04-10T12:00:00Z")
+        let updatedAt = requestEnd.addingTimeInterval(10)
+        let readEnd = requestEnd.addingTimeInterval(30)
+        let payload = cursorComposerData(
+            composerId: "live",
+            createdAtMillis: Int64(requestEnd.addingTimeInterval(-60).timeIntervalSince1970 * 1000),
+            lastUpdatedAtMillis: Int64(updatedAt.timeIntervalSince1970 * 1000),
+            modelName: "gpt-5.4",
+            contextTokensUsed: 1234,
+            usageData: [:],
+            linkedBubbleIDs: [])
+
+        let usage = CursorReader.usage(
+            fromComposerPayloads: [payload],
+            from: requestEnd.addingTimeInterval(-24 * 60 * 60),
+            to: readEnd)
+
+        XCTAssertEqual(
+            usage.supplemental
+                .filter { $0.label == "Cursor Context" }
+                .map(\.value),
+            [1234])
+    }
+
     func test_cursorReader_includesLiveComposerContextOnlyForCurrentDayOrRollingWindow() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))

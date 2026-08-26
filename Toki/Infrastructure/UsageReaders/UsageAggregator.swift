@@ -6,14 +6,14 @@ struct UsageAggregationRequest: Equatable {
     let dateInterval: DateInterval
     let enabledReaderNames: [String: Bool]
     let includesEmptySourceRows: Bool
-    let includesLiveContext: Bool
+    let includesLiveContext: Bool?
 
     init(
         start: Date,
         end: Date,
         enabledReaderNames: [String: Bool],
         includesEmptySourceRows: Bool,
-        includesLiveContext: Bool = false) {
+        includesLiveContext: Bool? = nil) {
         dateInterval = DateInterval(start: start, end: end)
         self.enabledReaderNames = enabledReaderNames
         self.includesEmptySourceRows = includesEmptySourceRows
@@ -296,7 +296,7 @@ private func readerFetchResult(
     index: Int,
     reader: any TokenReader,
     includeEmptySourceRows: Bool,
-    includesLiveContext: Bool,
+    includesLiveContext: Bool?,
     from startDate: Date,
     to endDate: Date) async -> ReaderFetchResult {
     guard !Task.isCancelled else {
@@ -328,7 +328,8 @@ private func readerFetchResult(
                 []
             }
         } else {
-            if let liveContextReader = reader as? any LiveContextConfigurableTokenReader {
+            if let liveContextReader = reader as? any LiveContextConfigurableTokenReader,
+               let includesLiveContext {
                 usage = try await liveContextReader.readUsage(
                     from: startDate,
                     to: endDate,

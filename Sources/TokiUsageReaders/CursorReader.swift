@@ -54,22 +54,28 @@ public struct CursorReader: TokenReader, LiveContextConfigurableTokenReader {
             to: endDate)
         guard !Task.isCancelled else { return RawTokenUsage() }
 
+        let liveContextEndDate = includesLiveContext ? max(endDate, Date()) : endDate
         let composerPayloads: [String] = if includesLiveContext {
             try cursorQueryLiveComposerPayloads(
                 db: db,
                 from: startDate,
-                to: endDate)
+                to: liveContextEndDate)
         } else {
             []
         }
         guard !Task.isCancelled else { return RawTokenUsage() }
 
-        return Self.usage(
+        var usage = Self.usage(
             fromBubblePayloads: bubblePayloads,
-            composerPayloads: composerPayloads,
             source: name,
             from: startDate,
             to: endDate)
+        usage += Self.usage(
+            fromComposerPayloads: composerPayloads,
+            source: name,
+            from: startDate,
+            to: liveContextEndDate)
+        return usage
     }
 }
 
@@ -283,8 +289,6 @@ extension CursorReader {
         now: Date = Date(),
         calendar: Calendar = .autoupdatingCurrent,
         explicitlyCurrentWindow: Bool = false) -> Bool {
-        // Date-ranged totals come from append-only bubble rows. The mutable
-        // composer snapshot is only safe to show as a live context overlay.
         if explicitlyCurrentWindow { return true }
         let currentDayStart = calendar.startOfDay(for: now)
         let currentDayEnd = calendar.date(byAdding: .day, value: 1, to: currentDayStart)
@@ -379,8 +383,6 @@ private func cursorQueryLiveComposerPayloads(
     to endDate: Date) throws -> [String] {
     guard !Task.isCancelled else { return [] }
 
-    // composerData is a mutable live snapshot, not a historical log.
-    // Only surface it for today's active view as context-only metadata.
     let startMillis = Int64(startDate.timeIntervalSince1970 * 1000)
     let endMillis = Int64(endDate.timeIntervalSince1970 * 1000)
     let composerKeyBinds = cursorKeyRangeBinds(forPrefix: "composerData:")

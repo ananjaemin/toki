@@ -4,6 +4,11 @@ import XCTest
 @testable import TokiUsageReaders
 
 final class TokiTests: XCTestCase {
+    func test_pricingCatalogRefreshSkipsXCTestHost() {
+        XCTAssertFalse(shouldStartPricingCatalogRefresh(isXCTestLoaded: true))
+        XCTAssertTrue(shouldStartPricingCatalogRefresh(isXCTestLoaded: false))
+    }
+
     func test_formattedTokens_belowThousand() {
         XCTAssertEqual(0.formattedTokens(), "0")
         XCTAssertEqual(1.formattedTokens(), "1")

@@ -3,9 +3,6 @@ import XCTest
 
 final class UsageServiceComparisonRefreshTests: XCTestCase {
     func test_usageService_yesterdayComparisonUsesLightweightTotalTokenPath() async throws {
-        let suiteName = "UsageServiceComparisonRefreshTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         let recorder = LightweightUsageRecorder()
         let today = Calendar.current.startOfDay(for: Date())
         let yesterday = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -1, to: today))
@@ -14,14 +11,7 @@ final class UsageServiceComparisonRefreshTests: XCTestCase {
             yesterday: yesterday,
             recorder: recorder)
 
-        let service = await MainActor.run {
-            UsageService(
-                readers: [reader],
-                settings: UsagePanelSettings(
-                    defaults: UserDefaults(suiteName: suiteName)!,
-                    readerNames: ["Mock"]),
-                comparisonDebounce: .zero)
-        }
+        let service = await MainActor.run { UsageService(readers: [reader]) }
         await service.refresh()
 
         var snapshot = await recorder.snapshot()
@@ -40,9 +30,6 @@ final class UsageServiceComparisonRefreshTests: XCTestCase {
     }
 
     func test_usageService_preservesZeroYesterdayTotalForTodayComparison() async throws {
-        let suiteName = "UsageServiceComparisonRefreshTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         let recorder = MockReaderRecorder()
         let today = Calendar.current.startOfDay(for: Date())
         let yesterday = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -1, to: today))
@@ -57,14 +44,7 @@ final class UsageServiceComparisonRefreshTests: XCTestCase {
             }
         }
 
-        let service = await MainActor.run {
-            UsageService(
-                readers: [reader],
-                settings: UsagePanelSettings(
-                    defaults: UserDefaults(suiteName: suiteName)!,
-                    readerNames: ["Mock"]),
-                comparisonDebounce: .zero)
-        }
+        let service = await MainActor.run { UsageService(readers: [reader]) }
         await service.refresh()
 
         var calls = await recorder.snapshot()
@@ -83,9 +63,6 @@ final class UsageServiceComparisonRefreshTests: XCTestCase {
     }
 
     func test_usageService_preservesYesterdayTotalDuringSameRangeRefresh() async throws {
-        let suiteName = "UsageServiceComparisonRefreshTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         let tracker = YesterdayRequestTracker()
         let today = Calendar.current.startOfDay(for: Date())
         let yesterday = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -1, to: today))
@@ -94,14 +71,7 @@ final class UsageServiceComparisonRefreshTests: XCTestCase {
             yesterday: yesterday,
             tracker: tracker)
 
-        let service = await MainActor.run {
-            UsageService(
-                readers: [reader],
-                settings: UsagePanelSettings(
-                    defaults: UserDefaults(suiteName: suiteName)!,
-                    readerNames: ["Mock"]),
-                comparisonDebounce: .zero)
-        }
+        let service = await MainActor.run { UsageService(readers: [reader]) }
         await service.refresh()
 
         var yesterdayTotal = await MainActor.run { service.yesterdayTotalTokens }
@@ -180,6 +150,29 @@ final class UsageServiceComparisonRefreshTests: XCTestCase {
 
         XCTAssertEqual(calls, 1)
         XCTAssertEqual(totalTokens, 100)
+    }
+
+    func test_usageService_selectionChangeRejectsActiveLoadWithoutReplacementRefresh() async throws {
+        let gate = BlockingReaderGate()
+        let today = Calendar.current.startOfDay(for: Date())
+        let firstDay = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -3, to: today))
+        let secondDay = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -2, to: today))
+        let reader = BlockingMockReader(name: "Mock", gate: gate) { _, _ in
+            mockUsage(totalTokens: 100)
+        }
+        let service = await MainActor.run { UsageService(readers: [reader]) }
+        await MainActor.run { service.selectDay(firstDay) }
+        let initialRefresh = Task { await service.refresh() }
+        await gate.waitForFirstRequest()
+
+        await MainActor.run { service.selectDay(secondDay) }
+        await gate.release()
+        await initialRefresh.value
+
+        let totalTokens = await MainActor.run { service.usageData.totalTokens }
+        let selectedStart = await MainActor.run { service.startDate }
+        XCTAssertEqual(totalTokens, 0)
+        XCTAssertEqual(selectedStart, secondDay)
     }
 
     func test_usageService_lastSelectionWinsWhenRangeChangesRepeatedlyDuringLoad() async throws {

@@ -52,6 +52,10 @@ public struct CursorReader: TokenReader, LiveContextConfigurableTokenReader {
             throw CursorSQLiteError(operation: "open", database: db)
         }
         sqlite3_busy_timeout(db, 2000)
+        guard sqlite3_exec(db, "BEGIN DEFERRED TRANSACTION", nil, nil, nil) == SQLITE_OK else {
+            throw CursorSQLiteError(operation: "begin read transaction", database: db)
+        }
+        defer { sqlite3_exec(db, "ROLLBACK", nil, nil, nil) }
 
         let bubblePayloads = try cursorQueryBubblePayloads(
             db: db,
@@ -59,11 +63,12 @@ public struct CursorReader: TokenReader, LiveContextConfigurableTokenReader {
             to: endDate)
         guard !Task.isCancelled else { return RawTokenUsage() }
 
+        let readAt = Date()
         let liveContextBounds = switch liveContextWindow {
         case .rolling24Hours:
             (
-                start: Date().addingTimeInterval(-24 * 60 * 60),
-                end: Date.distantFuture)
+                start: readAt.addingTimeInterval(-24 * 60 * 60),
+                end: readAt)
         case .calendarDay, nil:
             (start: startDate, end: endDate)
         }

@@ -296,6 +296,7 @@ extension UsagePanelViewModel {
     }
 
     func handleModelPricingChange() {
+        cancelActiveUsageRefresh()
         usageWindowResultCache.clear()
     }
 

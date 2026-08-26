@@ -63,6 +63,8 @@ final class UsagePanelSettings: ObservableObject {
         }
     }
 
+    @Published private(set) var currentUsageWindow: CurrentUsageWindow
+
     @Published private(set) var tabOrder: [PanelTab] {
         didSet {
             defaults.set(tabOrder.map(\.rawValue), forKey: Keys.tabOrder)
@@ -97,6 +99,7 @@ final class UsagePanelSettings: ObservableObject {
 
         autoUpdatesModelPricing = Self.isAutoUpdatePricingEnabled(defaults: defaults)
         showsMenuBarCost = Self.isMenuBarCostEnabled(defaults: defaults)
+        currentUsageWindow = Self.currentUsageWindow(defaults: defaults)
         tabOrder = Self.normalizedTabOrder(defaults.stringArray(forKey: Keys.tabOrder) ?? [])
     }
 
@@ -142,6 +145,13 @@ final class UsagePanelSettings: ObservableObject {
         NotificationCenter.default.post(name: .usagePanelMenuBarCostSettingDidChange, object: nil)
     }
 
+    func setCurrentUsageWindow(_ window: CurrentUsageWindow) {
+        guard currentUsageWindow != window else { return }
+        currentUsageWindow = window
+        defaults.set(window.rawValue, forKey: Keys.currentUsageWindow)
+        NotificationCenter.default.post(name: .usagePanelCurrentUsageWindowDidChange, object: nil)
+    }
+
     func setTabOrder(_ order: [PanelTab]) {
         let normalizedOrder = Self.normalizedTabOrder(order.map(\.rawValue))
         guard tabOrder != normalizedOrder else { return }
@@ -173,6 +183,14 @@ final class UsagePanelSettings: ObservableObject {
         normalizedRefreshInterval(defaults.integer(forKey: Keys.refreshIntervalSeconds))
     }
 
+    nonisolated static func currentUsageWindow(defaults: UserDefaults = .standard) -> CurrentUsageWindow {
+        guard let rawValue = defaults.string(forKey: Keys.currentUsageWindow),
+              let window = CurrentUsageWindow(rawValue: rawValue) else {
+            return .calendarDay
+        }
+        return window
+    }
+
     func enabledReaders(from readers: [any TokenReader]) -> [any TokenReader] {
         readers.filter { isReaderEnabled($0.name) }
     }
@@ -189,6 +207,7 @@ private extension UsagePanelSettings {
         static let showsZeroSourceRows = "usagePanel.showsZeroSourceRows"
         static let autoUpdatesModelPricing = "usagePanel.autoUpdatesModelPricing"
         static let showsMenuBarCost = "usagePanel.showsMenuBarCost"
+        static let currentUsageWindow = "usagePanel.currentUsageWindow"
         static let tabOrder = "usagePanel.tabOrder"
     }
 
@@ -223,6 +242,8 @@ private extension UsagePanelSettings {
 extension Notification.Name {
     static let usagePanelMenuBarCostSettingDidChange =
         Notification.Name("usagePanelMenuBarCostSettingDidChange")
+    static let usagePanelCurrentUsageWindowDidChange =
+        Notification.Name("usagePanelCurrentUsageWindowDidChange")
     static let usagePanelReaderSettingsDidChange =
         Notification.Name("usagePanelReaderSettingsDidChange")
     static let usagePanelRefreshIntervalDidChange =

@@ -84,6 +84,10 @@ extension UsagePanelViewModel {
         presentationSnapshot.isLoading
     }
 
+    var isRefreshing: Bool {
+        presentationSnapshot.isRefreshing
+    }
+
     var lastFetchedAt: Date? {
         presentationSnapshot.lastFetchedAt
     }

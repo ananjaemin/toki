@@ -3,8 +3,6 @@ import Foundation
 struct UsageRefreshIdentity: Equatable {
     let selectionStart: Date
     let selectionEnd: Date
-    let requestStart: Date
-    let requestEnd: Date
     let isRangeMode: Bool
     let currentUsageWindow: CurrentUsageWindow?
     let enabledReaderNames: [String: Bool]

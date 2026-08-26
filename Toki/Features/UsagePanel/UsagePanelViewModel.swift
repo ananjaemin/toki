@@ -117,8 +117,7 @@ final class UsagePanelViewModel: ObservableObject {
     func selectDay(_ date: Date) {
         cancelActiveUsageRefresh()
         resetYesterdayComparison()
-        presentedUsageRequest = nil
-        presentedUsageWindow = nil
+        clearPresentedUsage()
         startDate = calendar.startOfDay(for: date)
         endDate = calendar.date(byAdding: .day, value: 1, to: startDate)!
         followsCurrentDaySelection = calendar.isDateInToday(startDate)
@@ -127,8 +126,7 @@ final class UsagePanelViewModel: ObservableObject {
     func selectRangeStart(_ date: Date) {
         cancelActiveUsageRefresh()
         resetYesterdayComparison()
-        presentedUsageRequest = nil
-        presentedUsageWindow = nil
+        clearPresentedUsage()
         startDate = calendar.startOfDay(for: date)
         if startDate >= endDate {
             endDate = calendar.date(byAdding: .day, value: 1, to: startDate)!
@@ -139,8 +137,7 @@ final class UsagePanelViewModel: ObservableObject {
     func selectRangeEnd(_ date: Date) {
         cancelActiveUsageRefresh()
         resetYesterdayComparison()
-        presentedUsageRequest = nil
-        presentedUsageWindow = nil
+        clearPresentedUsage()
         let selectedEnd = calendar.startOfDay(for: date)
         endDate = calendar.date(byAdding: .day, value: 1, to: selectedEnd)!
         if startDate >= endDate {
@@ -156,7 +153,7 @@ final class UsagePanelViewModel: ObservableObject {
             start: startDate,
             end: endDate,
             now: refreshNow)
-        let refreshIdentity = makeUsageRefreshIdentity(request: request)
+        let refreshIdentity = makeUsageRefreshIdentity()
         var previousTotalTokens = presentedUsageRequest == request && canCachePreviousComparison
             ? snapshot.yesterdayTotalTokens
             : nil
@@ -170,12 +167,10 @@ final class UsagePanelViewModel: ObservableObject {
         let cacheKey = makeUsageWindowResultCacheKey()
         if usesWindowResultCache,
            let cacheKey,
-           let cachedResult = publishCachedUsage(
-               for: request,
+           let didFallBackToAllDevices = publishCachedUsage(
                cacheKey: cacheKey,
                now: refreshNow) {
-            previousTotalTokens = cachedResult.previousTotalTokens ?? previousTotalTokens
-            refreshPeriodTokenTotalsAfterScopeFallbackIfNeeded(cachedResult.didFallBackToAllDevices)
+            refreshPeriodTokenTotalsAfterScopeFallbackIfNeeded(didFallBackToAllDevices)
         }
 
         usageRefreshGeneration &+= 1
@@ -197,7 +192,7 @@ final class UsagePanelViewModel: ObservableObject {
               !usageTask.isCancelled,
               generation == usageRefreshGeneration,
               activeRefreshIdentity == refreshIdentity,
-              makeUsageRefreshIdentity(request: request) == refreshIdentity else {
+              makeUsageRefreshIdentity() == refreshIdentity else {
             finishCanceledUsageRefresh(generation: generation)
             return
         }
@@ -205,6 +200,7 @@ final class UsagePanelViewModel: ObservableObject {
         activeUsageTask = nil
         activeRefreshIdentity = nil
         let fetchedAt = now()
+        previousTotalTokens = canCachePreviousComparison ? previousTotalTokens : nil
         let didFallBackToAllDevices = publishUsageResult(
             result,
             request: request,
@@ -239,8 +235,7 @@ extension UsagePanelViewModel {
     func selectRange(from: Date, to: Date) {
         cancelActiveUsageRefresh()
         resetYesterdayComparison()
-        presentedUsageRequest = nil
-        presentedUsageWindow = nil
+        clearPresentedUsage()
         let normalizedFrom = calendar.startOfDay(for: from)
         let normalizedTo = calendar.startOfDay(for: to)
         let lowerBound = min(normalizedFrom, normalizedTo)
@@ -259,8 +254,7 @@ extension UsagePanelViewModel {
 
         cancelActiveUsageRefresh()
         resetYesterdayComparison()
-        presentedUsageRequest = nil
-        presentedUsageWindow = nil
+        clearPresentedUsage()
         startDate = today
         endDate = calendar.date(byAdding: .day, value: 1, to: today)!
         followsCurrentDaySelection = true
@@ -384,13 +378,14 @@ private extension UsagePanelViewModel {
     }
 
     func publishCachedUsage(
-        for request: UsageAggregationRequest,
         cacheKey: UsageWindowResultCacheKey,
-        now: Date) -> (previousTotalTokens: Int?, didFallBackToAllDevices: Bool)? {
+        now: Date) -> Bool? {
         guard let cachedEntry = usageWindowResultCache.entry(for: cacheKey, now: now) else { return nil }
-        let previousTotalTokens = canCachePreviousComparison && cachedEntry.request == request
-            ? cachedEntry.previousTotalTokens
-            : nil
+        if case let .origin(originID) = selectedUsageScope,
+           !cachedEntry.result.originReports.contains(where: { $0.id == originID }) {
+            return nil
+        }
+        let previousTotalTokens = canCachePreviousComparison ? cachedEntry.previousTotalTokens : nil
         let didFallBackToAllDevices = publishUsageResult(
             cachedEntry.result,
             request: cachedEntry.request,
@@ -402,7 +397,7 @@ private extension UsagePanelViewModel {
             $0.isLoading = false
             $0.isRefreshing = true
         }
-        return (previousTotalTokens, didFallBackToAllDevices)
+        return didFallBackToAllDevices
     }
 
     var isShowingCurrentUsageWindow: Bool {
@@ -493,12 +488,10 @@ private extension UsagePanelViewModel {
         }
     }
 
-    private func makeUsageRefreshIdentity(request: UsageAggregationRequest) -> UsageRefreshIdentity {
+    private func makeUsageRefreshIdentity() -> UsageRefreshIdentity {
         UsageRefreshIdentity(
             selectionStart: startDate,
             selectionEnd: endDate,
-            requestStart: request.start,
-            requestEnd: request.end,
             isRangeMode: isRangeMode,
             currentUsageWindow: selectedCurrentUsageWindow,
             enabledReaderNames: settings.normalizedReaderSettings(for: readerNames),
@@ -517,7 +510,14 @@ private extension UsagePanelViewModel {
             end: interval.end,
             enabledReaderNames: settings.normalizedReaderSettings(for: readerNames),
             includesEmptySourceRows: settings.showsZeroSourceRows,
-            includesLiveContext: selectedCurrentUsageWindow != nil)
+            liveContextWindow: selectedCurrentUsageWindow.map {
+                switch $0 {
+                case .calendarDay:
+                    .calendarDay
+                case .rolling24Hours:
+                    .rolling24Hours
+                }
+            })
     }
 
     private func cancelYesterdayComparison() {

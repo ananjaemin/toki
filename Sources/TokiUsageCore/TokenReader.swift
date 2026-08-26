@@ -7,11 +7,16 @@ public protocol TokenReader {
     func readOutputTokens(from startDate: Date, to endDate: Date) async throws -> Int
 }
 
+public enum LiveContextWindow: Sendable, Equatable {
+    case calendarDay
+    case rolling24Hours
+}
+
 public protocol LiveContextConfigurableTokenReader {
     func readUsage(
         from startDate: Date,
         to endDate: Date,
-        includesLiveContext: Bool) async throws -> RawTokenUsage
+        liveContextWindow: LiveContextWindow?) async throws -> RawTokenUsage
 }
 
 public extension TokenReader {

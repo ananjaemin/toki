@@ -1,6 +1,8 @@
 import Foundation
 import TokiUsageCore
 
+// swiftlint:disable file_length
+
 #if os(Linux)
     import CSQLite
 #else
@@ -24,18 +26,21 @@ public struct CursorReader: TokenReader, LiveContextConfigurableTokenReader {
     }
 
     public func readUsage(from startDate: Date, to endDate: Date) async throws -> RawTokenUsage {
-        try await readUsage(
+        let readStartedAt = Date()
+        let liveContextWindow: LiveContextWindow? = Self.shouldIncludeLiveComposerContext(
             from: startDate,
             to: endDate,
-            includesLiveContext: Self.shouldIncludeLiveComposerContext(
-                from: startDate,
-                to: endDate))
+            now: readStartedAt) ? .calendarDay : nil
+        return try await readUsage(
+            from: startDate,
+            to: endDate,
+            liveContextWindow: liveContextWindow)
     }
 
     public func readUsage(
         from startDate: Date,
         to endDate: Date,
-        includesLiveContext: Bool) async throws -> RawTokenUsage {
+        liveContextWindow: LiveContextWindow?) async throws -> RawTokenUsage {
         guard !Task.isCancelled,
               FileManager.default.fileExists(atPath: dbPath) else {
             return RawTokenUsage()
@@ -54,8 +59,13 @@ public struct CursorReader: TokenReader, LiveContextConfigurableTokenReader {
             to: endDate)
         guard !Task.isCancelled else { return RawTokenUsage() }
 
-        let liveContextEndDate = includesLiveContext ? max(endDate, Date()) : endDate
-        let composerPayloads: [String] = if includesLiveContext {
+        let liveContextEndDate = switch liveContextWindow {
+        case .rolling24Hours:
+            max(endDate, Date())
+        case .calendarDay, nil:
+            endDate
+        }
+        let composerPayloads: [String] = if liveContextWindow != nil {
             try cursorQueryLiveComposerPayloads(
                 db: db,
                 from: startDate,

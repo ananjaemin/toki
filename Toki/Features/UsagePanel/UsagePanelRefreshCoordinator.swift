@@ -80,6 +80,8 @@ final class UsageWindowResultCache {
 final class UsagePanelRefreshCoordinator {
     private var refreshLoopTask: Task<Void, Never>?
     private var settingsRefreshTask: Task<Void, Never>?
+    private var pendingRefreshesPeriodTokenTotals = false
+    private var pendingUsesWindowResultCache = true
 
     func startLoop(
         refreshImmediately: Bool,
@@ -99,12 +101,27 @@ final class UsagePanelRefreshCoordinator {
         }
     }
 
-    func scheduleSettingsRefresh(refresh: @escaping @MainActor () async -> Void) {
+    func scheduleSettingsRefresh(
+        refreshesPeriodTokenTotals: Bool,
+        usesWindowResultCache: Bool,
+        refresh: @escaping @MainActor (Bool, Bool) async -> Void) {
+        if settingsRefreshTask == nil {
+            pendingRefreshesPeriodTokenTotals = refreshesPeriodTokenTotals
+            pendingUsesWindowResultCache = usesWindowResultCache
+        } else {
+            pendingRefreshesPeriodTokenTotals = pendingRefreshesPeriodTokenTotals || refreshesPeriodTokenTotals
+            pendingUsesWindowResultCache = pendingUsesWindowResultCache && usesWindowResultCache
+        }
         settingsRefreshTask?.cancel()
         settingsRefreshTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(150))
             guard !Task.isCancelled else { return }
-            await refresh()
+            let refreshesPeriodTokenTotals = pendingRefreshesPeriodTokenTotals
+            let usesWindowResultCache = pendingUsesWindowResultCache
+            settingsRefreshTask = nil
+            pendingRefreshesPeriodTokenTotals = false
+            pendingUsesWindowResultCache = true
+            await refresh(refreshesPeriodTokenTotals, usesWindowResultCache)
         }
     }
 
@@ -113,5 +130,7 @@ final class UsagePanelRefreshCoordinator {
         settingsRefreshTask?.cancel()
         refreshLoopTask = nil
         settingsRefreshTask = nil
+        pendingRefreshesPeriodTokenTotals = false
+        pendingUsesWindowResultCache = true
     }
 }

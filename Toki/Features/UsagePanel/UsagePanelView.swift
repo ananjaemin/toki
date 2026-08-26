@@ -238,11 +238,13 @@ private extension UsagePanelView {
     func scheduleSettingsRefresh(
         refreshesPeriodTokenTotals: Bool = true,
         usesWindowResultCache: Bool = false) {
-        refreshCoordinator.scheduleSettingsRefresh {
-            await refreshVisibleData(
-                refreshesPeriodTokenTotals: refreshesPeriodTokenTotals,
-                usesWindowResultCache: usesWindowResultCache)
-        }
+        refreshCoordinator.scheduleSettingsRefresh(
+            refreshesPeriodTokenTotals: refreshesPeriodTokenTotals,
+            usesWindowResultCache: usesWindowResultCache) { refreshesPeriodTokenTotals, usesWindowResultCache in
+                await refreshVisibleData(
+                    refreshesPeriodTokenTotals: refreshesPeriodTokenTotals,
+                    usesWindowResultCache: usesWindowResultCache)
+            }
     }
 
     func refreshVisibleData(

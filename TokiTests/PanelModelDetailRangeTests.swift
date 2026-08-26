@@ -84,7 +84,7 @@ final class PanelModelDetailRangeTests: XCTestCase {
 
     func test_usageReportClipsPartialHourlyBucketsToRollingRange() throws {
         let calendar = Calendar.current
-        let startDate = tokiTestISODate("2026-04-10T10:30:00Z")
+        let startDate = tokiTestISODate("2026-04-10T10:30:30Z")
         let endDate = try XCTUnwrap(calendar.date(byAdding: .hour, value: 24, to: startDate))
 
         let report = UsageReportBuilder.report(

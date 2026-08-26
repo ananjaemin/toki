@@ -70,13 +70,36 @@ actor CancellableUsageRequestTracker {
 
 struct CancellableSequencedReader: TokenReader {
     let name: String
-    let blockedRequestNumber: Int
+    let blockedRequestNumbers: Set<Int>
     let tracker: CancellableUsageRequestTracker
     let handler: @Sendable (Date, Date) -> RawTokenUsage
 
+    init(
+        name: String,
+        blockedRequestNumber: Int,
+        tracker: CancellableUsageRequestTracker,
+        handler: @escaping @Sendable (Date, Date) -> RawTokenUsage) {
+        self.init(
+            name: name,
+            blockedRequestNumbers: [blockedRequestNumber],
+            tracker: tracker,
+            handler: handler)
+    }
+
+    init(
+        name: String,
+        blockedRequestNumbers: Set<Int>,
+        tracker: CancellableUsageRequestTracker,
+        handler: @escaping @Sendable (Date, Date) -> RawTokenUsage) {
+        self.name = name
+        self.blockedRequestNumbers = blockedRequestNumbers
+        self.tracker = tracker
+        self.handler = handler
+    }
+
     func readUsage(from startDate: Date, to endDate: Date) async throws -> RawTokenUsage {
         let requestNumber = await tracker.beginRequest()
-        if requestNumber == blockedRequestNumber {
+        if blockedRequestNumbers.contains(requestNumber) {
             do {
                 try await Task.sleep(for: .seconds(30))
             } catch {

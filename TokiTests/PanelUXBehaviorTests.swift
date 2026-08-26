@@ -222,6 +222,36 @@ final class PanelUXBehaviorTests: XCTestCase {
     }
 }
 
+final class UsagePanelRefreshCoordinatorTests: XCTestCase {
+    @MainActor
+    func test_settingsRefreshMergesPendingRefreshRequirements() async {
+        let coordinator = UsagePanelRefreshCoordinator()
+        let refreshed = expectation(description: "Merged settings refresh")
+        var receivedTotalsRefresh = false
+        var receivedWindowCache = true
+
+        coordinator.scheduleSettingsRefresh(
+            refreshesPeriodTokenTotals: true,
+            usesWindowResultCache: false) { refreshesTotals, usesWindowCache in
+                receivedTotalsRefresh = refreshesTotals
+                receivedWindowCache = usesWindowCache
+                refreshed.fulfill()
+            }
+        coordinator.scheduleSettingsRefresh(
+            refreshesPeriodTokenTotals: false,
+            usesWindowResultCache: true) { refreshesTotals, usesWindowCache in
+                receivedTotalsRefresh = refreshesTotals
+                receivedWindowCache = usesWindowCache
+                refreshed.fulfill()
+            }
+
+        await fulfillment(of: [refreshed], timeout: 1)
+        XCTAssertTrue(receivedTotalsRefresh)
+        XCTAssertFalse(receivedWindowCache)
+        coordinator.cancel()
+    }
+}
+
 final class MenuBarSummaryPanelVisibilityTests: XCTestCase {
     @MainActor
     func test_menuBarSummarySuspendsWhilePanelIsVisibleAndRestartsWhenHidden() async {

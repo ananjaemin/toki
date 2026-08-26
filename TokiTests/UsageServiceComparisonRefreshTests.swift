@@ -1,7 +1,36 @@
 import XCTest
 @testable import Toki
 
-final class UsageServiceRollingWindowTests: XCTestCase {
+final class UsageServiceRefreshLifecycleTests: XCTestCase {
+    func test_usageService_rangeModeClearsPresentedRollingWindow() async throws {
+        let suiteName = "UsageServiceRollingWindowTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let reader = MockReader(name: "Mock", recorder: MockReaderRecorder()) { _, _ in
+            mockUsage(totalTokens: 100)
+        }
+        let service = await MainActor.run {
+            let settings = UsagePanelSettings(
+                defaults: UserDefaults(suiteName: suiteName)!,
+                readerNames: ["Mock"])
+            settings.setCurrentUsageWindow(.rolling24Hours)
+            return UsageService(
+                readers: [reader],
+                settings: settings,
+                comparisonDebounce: .seconds(30))
+        }
+        await service.refresh()
+
+        await MainActor.run { service.isRangeMode = true }
+
+        let snapshot = await MainActor.run { service.presentationSnapshot }
+        let presentedWindow = await MainActor.run { service.currentUsageWindowForPresentation }
+        XCTAssertEqual(snapshot.combinedUsageData.totalTokens, 0)
+        XCTAssertNil(presentedWindow)
+        XCTAssertFalse(snapshot.isLoading)
+        XCTAssertFalse(snapshot.isRefreshing)
+    }
+
     func test_usageService_callerCancellationStopsActiveAggregation() async throws {
         let suiteName = "UsageServiceRollingWindowTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
@@ -34,7 +63,9 @@ final class UsageServiceRollingWindowTests: XCTestCase {
         XCTAssertFalse(usageSnapshot.isLoading)
         XCTAssertFalse(usageSnapshot.isRefreshing)
     }
+}
 
+final class UsageServiceRollingWindowTests: XCTestCase {
     func test_usageService_windowChangeCancelsInFlightLoadAndPublishesLatestWindow() async throws {
         let suiteName = "UsageServiceRollingWindowTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
@@ -85,7 +116,7 @@ final class UsageServiceRollingWindowTests: XCTestCase {
         let tracker = CancellableUsageRequestTracker()
         let reader = CancellableSequencedReader(
             name: "Mock",
-            blockedRequestNumber: 2,
+            blockedRequestNumbers: [2, 3],
             tracker: tracker) { _, _ in
                 mockUsage(totalTokens: 100)
             }
@@ -119,16 +150,26 @@ final class UsageServiceRollingWindowTests: XCTestCase {
             service.settings.setCurrentUsageWindow(.calendarDay)
             service.handleCurrentUsageWindowChange()
         }
-        await service.refresh(usesWindowResultCache: true)
+        let cachedRefresh = Task { await service.refresh(usesWindowResultCache: true) }
+        await tracker.waitForRequestCount(3)
+
+        let cachedSnapshot = await MainActor.run { service.presentationSnapshot }
+        let cachedWindow = await MainActor.run { service.currentUsageWindowForPresentation }
+        XCTAssertEqual(cachedSnapshot.combinedUsageData.totalTokens, 100)
+        XCTAssertFalse(cachedSnapshot.isLoading)
+        XCTAssertTrue(cachedSnapshot.isRefreshing)
+        XCTAssertEqual(cachedWindow, .calendarDay)
+
+        cachedRefresh.cancel()
+        await cachedRefresh.value
         await rollingRefresh.value
 
         let requestSnapshot = await tracker.snapshot()
-        let cachedSnapshot = await MainActor.run { service.presentationSnapshot }
+        let settledSnapshot = await MainActor.run { service.presentationSnapshot }
         XCTAssertEqual(requestSnapshot.requestCount, 3)
-        XCTAssertEqual(requestSnapshot.cancellationCount, 1)
-        XCTAssertEqual(cachedSnapshot.combinedUsageData.totalTokens, 100)
-        XCTAssertFalse(cachedSnapshot.isLoading)
-        XCTAssertFalse(cachedSnapshot.isRefreshing)
+        XCTAssertEqual(requestSnapshot.cancellationCount, 2)
+        XCTAssertFalse(settledSnapshot.isLoading)
+        XCTAssertFalse(settledSnapshot.isRefreshing)
     }
 
     func test_usageService_rollingWindowUsesCurrentAndPrevious24HourIntervals() async throws {

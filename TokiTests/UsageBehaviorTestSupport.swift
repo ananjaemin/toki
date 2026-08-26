@@ -71,17 +71,20 @@ actor CancellableUsageRequestTracker {
 struct CancellableSequencedReader: TokenReader {
     let name: String
     let blockedRequestNumbers: Set<Int>
+    let blockDuration: Duration
     let tracker: CancellableUsageRequestTracker
     let handler: @Sendable (Int, Date, Date) -> RawTokenUsage
 
     init(
         name: String,
         blockedRequestNumber: Int,
+        blockDuration: Duration = .seconds(30),
         tracker: CancellableUsageRequestTracker,
         handler: @escaping @Sendable (Date, Date) -> RawTokenUsage) {
         self.init(
             name: name,
             blockedRequestNumbers: [blockedRequestNumber],
+            blockDuration: blockDuration,
             tracker: tracker,
             requestHandler: { _, startDate, endDate in handler(startDate, endDate) })
     }
@@ -89,11 +92,13 @@ struct CancellableSequencedReader: TokenReader {
     init(
         name: String,
         blockedRequestNumbers: Set<Int>,
+        blockDuration: Duration = .seconds(30),
         tracker: CancellableUsageRequestTracker,
         handler: @escaping @Sendable (Date, Date) -> RawTokenUsage) {
         self.init(
             name: name,
             blockedRequestNumbers: blockedRequestNumbers,
+            blockDuration: blockDuration,
             tracker: tracker,
             requestHandler: { _, startDate, endDate in handler(startDate, endDate) })
     }
@@ -101,10 +106,12 @@ struct CancellableSequencedReader: TokenReader {
     init(
         name: String,
         blockedRequestNumbers: Set<Int>,
+        blockDuration: Duration = .seconds(30),
         tracker: CancellableUsageRequestTracker,
         requestHandler: @escaping @Sendable (Int, Date, Date) -> RawTokenUsage) {
         self.name = name
         self.blockedRequestNumbers = blockedRequestNumbers
+        self.blockDuration = blockDuration
         self.tracker = tracker
         handler = requestHandler
     }
@@ -113,7 +120,7 @@ struct CancellableSequencedReader: TokenReader {
         let requestNumber = await tracker.beginRequest()
         if blockedRequestNumbers.contains(requestNumber) {
             do {
-                try await Task.sleep(for: .seconds(30))
+                try await Task.sleep(for: blockDuration)
             } catch {
                 await tracker.recordCancellation()
                 throw error

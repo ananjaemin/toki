@@ -183,6 +183,7 @@ final class UsageServiceRollingWindowTests: XCTestCase {
         let reader = CancellableSequencedReader(
             name: "Mock",
             blockedRequestNumbers: [2, 3],
+            blockDuration: .milliseconds(200),
             tracker: tracker,
             requestHandler: { requestNumber, _, _ in
                 mockUsage(totalTokens: requestNumber == 1 ? 100 : 999)
@@ -227,14 +228,14 @@ final class UsageServiceRollingWindowTests: XCTestCase {
         XCTAssertTrue(cachedSnapshot.isRefreshing)
         XCTAssertEqual(cachedWindow, .calendarDay)
 
-        cachedRefresh.cancel()
         await cachedRefresh.value
         await rollingRefresh.value
 
         let requestSnapshot = await tracker.snapshot()
         let settledSnapshot = await MainActor.run { service.presentationSnapshot }
         XCTAssertEqual(requestSnapshot.requestCount, 3)
-        XCTAssertEqual(requestSnapshot.cancellationCount, 2)
+        XCTAssertEqual(requestSnapshot.cancellationCount, 1)
+        XCTAssertEqual(settledSnapshot.combinedUsageData.totalTokens, 999)
         XCTAssertFalse(settledSnapshot.isLoading)
         XCTAssertFalse(settledSnapshot.isRefreshing)
     }

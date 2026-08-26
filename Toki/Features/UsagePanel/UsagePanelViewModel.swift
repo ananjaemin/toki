@@ -160,11 +160,6 @@ final class UsagePanelViewModel: ObservableObject {
             ? snapshot.yesterdayTotalTokens
             : nil
 
-        if let activeUsageTask {
-            guard activeRefreshIdentity != refreshIdentity || activeUsageTask.isCancelled else { return }
-            cancelActiveUsageRefresh()
-        }
-
         cancelYesterdayComparison()
         let cacheKey = makeUsageWindowResultCacheKey()
         if usesWindowResultCache,
@@ -173,6 +168,11 @@ final class UsagePanelViewModel: ObservableObject {
                cacheKey: cacheKey,
                now: refreshNow) {
             refreshPeriodTokenTotalsAfterScopeFallbackIfNeeded(didFallBackToAllDevices)
+        }
+
+        if let activeUsageTask {
+            guard activeRefreshIdentity != refreshIdentity || activeUsageTask.isCancelled else { return }
+            cancelActiveUsageRefresh()
         }
 
         usageRefreshGeneration &+= 1
@@ -293,6 +293,10 @@ extension UsagePanelViewModel {
 
     var shouldCompareAgainstYesterday: Bool {
         isShowingCurrentUsageWindow
+    }
+
+    func handleModelPricingChange() {
+        usageWindowResultCache.clear()
     }
 
     @discardableResult

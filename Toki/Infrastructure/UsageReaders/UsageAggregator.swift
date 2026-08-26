@@ -6,15 +6,18 @@ struct UsageAggregationRequest: Equatable {
     let dateInterval: DateInterval
     let enabledReaderNames: [String: Bool]
     let includesEmptySourceRows: Bool
+    let includesLiveContext: Bool
 
     init(
         start: Date,
         end: Date,
         enabledReaderNames: [String: Bool],
-        includesEmptySourceRows: Bool) {
+        includesEmptySourceRows: Bool,
+        includesLiveContext: Bool = false) {
         dateInterval = DateInterval(start: start, end: end)
         self.enabledReaderNames = enabledReaderNames
         self.includesEmptySourceRows = includesEmptySourceRows
+        self.includesLiveContext = includesLiveContext
     }
 
     var start: Date {
@@ -200,6 +203,7 @@ private extension UsageAggregator {
                         index: index,
                         reader: reader,
                         includeEmptySourceRows: request.includesEmptySourceRows,
+                        includesLiveContext: request.includesLiveContext,
                         from: request.start,
                         to: request.end)
                 }
@@ -292,6 +296,7 @@ private func readerFetchResult(
     index: Int,
     reader: any TokenReader,
     includeEmptySourceRows: Bool,
+    includesLiveContext: Bool,
     from startDate: Date,
     to endDate: Date) async -> ReaderFetchResult {
     guard !Task.isCancelled else {
@@ -323,7 +328,14 @@ private func readerFetchResult(
                 []
             }
         } else {
-            usage = try await reader.readUsage(from: startDate, to: endDate)
+            if let liveContextReader = reader as? any LiveContextConfigurableTokenReader {
+                usage = try await liveContextReader.readUsage(
+                    from: startDate,
+                    to: endDate,
+                    includesLiveContext: includesLiveContext)
+            } else {
+                usage = try await reader.readUsage(from: startDate, to: endDate)
+            }
             let sourceStats = [sourceStat(
                 from: usage,
                 source: reader.name,

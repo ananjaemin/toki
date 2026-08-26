@@ -222,7 +222,8 @@ final class CursorReaderLiveContextTests: XCTestCase {
                 from: rollingStart,
                 to: now,
                 now: now,
-                calendar: calendar))
+                calendar: calendar,
+                explicitlyCurrentWindow: true))
 
         XCTAssertFalse(
             CursorReader.shouldIncludeLiveComposerContext(
@@ -238,6 +239,13 @@ final class CursorReaderLiveContextTests: XCTestCase {
                 to: tomorrowStart,
                 now: justAfterMidnight,
                 calendar: calendar))
+        XCTAssertTrue(
+            CursorReader.shouldIncludeLiveComposerContext(
+                from: todayStart,
+                to: tomorrowStart,
+                now: justAfterMidnight,
+                calendar: calendar,
+                explicitlyCurrentWindow: true))
     }
 }
 

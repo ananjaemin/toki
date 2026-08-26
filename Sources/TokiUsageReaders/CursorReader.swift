@@ -11,7 +11,7 @@ private let cursorModelLookupIdentifierChunkSize = 250
 
 /// Reads Cursor's global usage state from the app's local SQLite store.
 /// Aggregates one token-bearing assistant response per usage UUID.
-public struct CursorReader: TokenReader {
+public struct CursorReader: TokenReader, LiveContextConfigurableTokenReader {
     public let name = "Cursor"
     private let dbPathOverride: String?
 
@@ -24,6 +24,18 @@ public struct CursorReader: TokenReader {
     }
 
     public func readUsage(from startDate: Date, to endDate: Date) async throws -> RawTokenUsage {
+        try await readUsage(
+            from: startDate,
+            to: endDate,
+            includesLiveContext: Self.shouldIncludeLiveComposerContext(
+                from: startDate,
+                to: endDate))
+    }
+
+    public func readUsage(
+        from startDate: Date,
+        to endDate: Date,
+        includesLiveContext: Bool) async throws -> RawTokenUsage {
         guard !Task.isCancelled,
               FileManager.default.fileExists(atPath: dbPath) else {
             return RawTokenUsage()
@@ -42,7 +54,7 @@ public struct CursorReader: TokenReader {
             to: endDate)
         guard !Task.isCancelled else { return RawTokenUsage() }
 
-        let composerPayloads: [String] = if Self.shouldIncludeLiveComposerContext(from: startDate, to: endDate) {
+        let composerPayloads: [String] = if includesLiveContext {
             try cursorQueryLiveComposerPayloads(
                 db: db,
                 from: startDate,
@@ -269,24 +281,14 @@ extension CursorReader {
         from startDate: Date,
         to endDate: Date,
         now: Date = Date(),
-        calendar: Calendar = .autoupdatingCurrent) -> Bool {
+        calendar: Calendar = .autoupdatingCurrent,
+        explicitlyCurrentWindow: Bool = false) -> Bool {
         // Date-ranged totals come from append-only bubble rows. The mutable
         // composer snapshot is only safe to show as a live context overlay.
-        let rollingWindowDuration: TimeInterval = 24 * 60 * 60
-        let currentReadTolerance: TimeInterval = 60
-        let duration = endDate.timeIntervalSince(startDate)
+        if explicitlyCurrentWindow { return true }
         let currentDayStart = calendar.startOfDay(for: now)
         let currentDayEnd = calendar.date(byAdding: .day, value: 1, to: currentDayStart)
-        let isCurrentCalendarDay = startDate == currentDayStart && endDate == currentDayEnd
-
-        let intervalDayStart = calendar.startOfDay(for: startDate)
-        let intervalDayEnd = calendar.date(byAdding: .day, value: 1, to: intervalDayStart)
-        let isCompleteCalendarDay = startDate == intervalDayStart && endDate == intervalDayEnd
-        let isCurrentRollingWindow = abs(duration - rollingWindowDuration) < 1
-            && abs(endDate.timeIntervalSince(now)) <= currentReadTolerance
-            && !isCompleteCalendarDay
-
-        return isCurrentCalendarDay || isCurrentRollingWindow
+        return startDate == currentDayStart && endDate == currentDayEnd
     }
 }
 

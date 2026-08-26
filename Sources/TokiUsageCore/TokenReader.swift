@@ -7,6 +7,13 @@ public protocol TokenReader {
     func readOutputTokens(from startDate: Date, to endDate: Date) async throws -> Int
 }
 
+public protocol LiveContextConfigurableTokenReader {
+    func readUsage(
+        from startDate: Date,
+        to endDate: Date,
+        includesLiveContext: Bool) async throws -> RawTokenUsage
+}
+
 public extension TokenReader {
     func readTotalTokens(from startDate: Date, to endDate: Date) async throws -> Int {
         try await readUsage(from: startDate, to: endDate).totalTokens

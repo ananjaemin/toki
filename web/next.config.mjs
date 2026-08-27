@@ -4,8 +4,8 @@ const withMDX = createMDX();
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    poweredByHeader: false,
-    reactStrictMode: true,
+  poweredByHeader: false,
+  reactStrictMode: true,
 };
 
 export default withMDX(nextConfig);

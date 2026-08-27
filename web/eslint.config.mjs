@@ -6,16 +6,17 @@ const currentDirectory = dirname(fileURLToPath(import.meta.url));
 const compat = new FlatCompat({ baseDirectory: currentDirectory });
 
 const config = [
-    ...compat.extends('next/core-web-vitals', 'next/typescript'),
-    {
-        ignores: [
-            '.next/**',
-            '.source/**',
-            'coverage/**',
-            'node_modules/**',
-            'out/**',
-        ],
-    },
+  ...compat.extends('next/core-web-vitals', 'next/typescript'),
+  {
+    ignores: [
+      '.next/**',
+      '.source/**',
+      'coverage/**',
+      'next-env.d.ts',
+      'node_modules/**',
+      'out/**',
+    ],
+  },
 ];
 
 export default config;

@@ -101,7 +101,7 @@
           "**/TokiTests/**/*.swift",
           "**/Sources/**/*.swift",
           "**/Tests/**/*.swift",
-          "**/TokiHub/**/*.swift",
+          "**/hub/**/*.swift",
           "**/Package.swift",
           "**/Package.resolved",
           "**/project.yml",

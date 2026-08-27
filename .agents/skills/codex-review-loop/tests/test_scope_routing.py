@@ -31,11 +31,11 @@ class ScopeRoutingTests(unittest.TestCase):
         docs = self.repo / "docs" / "notes.md"
         docs.parent.mkdir(parents=True)
         docs.write_text("ordinary notes\n", encoding="utf-8")
-        reader = self.repo / "Sources" / "TokiUsageReaders" / "Reader.swift"
+        reader = self.repo / "core" / "Sources" / "TokiUsageReaders" / "Reader.swift"
         reader.parent.mkdir(parents=True)
         reader.write_text("struct Reader {}\n", encoding="utf-8")
-        app_test = self.repo / "TokiTests" / "BehaviorTests.swift"
-        app_test.parent.mkdir()
+        app_test = self.repo / "menubar" / "TokiTests" / "BehaviorTests.swift"
+        app_test.parent.mkdir(parents=True)
         app_test.write_text("func verifyBehavior() {}\n", encoding="utf-8")
         self.git("add", ".")
         self.git("commit", "-q", "-m", "initial")
@@ -93,7 +93,7 @@ class ScopeRoutingTests(unittest.TestCase):
 
     def test_base_scope_routes_protocol_change_to_remote_and_testing(self) -> None:
         self.git("switch", "-q", "-c", "feature")
-        cipher = self.repo / "Sources" / "TokiSyncProtocol" / "SnapshotCipher.swift"
+        cipher = self.repo / "core" / "Sources" / "TokiSyncProtocol" / "SnapshotCipher.swift"
         cipher.parent.mkdir(parents=True)
         cipher.write_text("func seal(nonce: String) {}\n", encoding="utf-8")
         self.git("add", ".")
@@ -110,7 +110,7 @@ class ScopeRoutingTests(unittest.TestCase):
 
     def test_commit_scope_preserves_exact_sha_target(self) -> None:
         self.git("switch", "-q", "-c", "feature")
-        cipher = self.repo / "Sources" / "TokiSyncProtocol" / "SnapshotCipher.swift"
+        cipher = self.repo / "core" / "Sources" / "TokiSyncProtocol" / "SnapshotCipher.swift"
         cipher.parent.mkdir(parents=True)
         cipher.write_text("func open(ciphertext: String) {}\n", encoding="utf-8")
         self.git("add", ".")
@@ -130,14 +130,14 @@ class ScopeRoutingTests(unittest.TestCase):
         self.assertTrue(result["hasChanges"])
         self.assertIn("README.md", result["changedPaths"])
         self.assertIn(
-            "Sources/TokiUsageReaders/Reader.swift",
+            "core/Sources/TokiUsageReaders/Reader.swift",
             result["changedPaths"],
         )
         self.assertEqual(result["scope"]["codexArgs"], ["--commit", root_commit])
 
     def test_commit_scope_resolves_merge_against_first_parent(self) -> None:
         self.git("switch", "-q", "-c", "feature")
-        reader = self.repo / "Sources" / "TokiUsageReaders" / "MergedReader.swift"
+        reader = self.repo / "core" / "Sources" / "TokiUsageReaders" / "MergedReader.swift"
         reader.write_text("struct MergedReader {}\n", encoding="utf-8")
         self.git("add", ".")
         self.git("commit", "-q", "-m", "add merged reader")
@@ -149,14 +149,14 @@ class ScopeRoutingTests(unittest.TestCase):
 
         self.assertTrue(result["hasChanges"])
         self.assertIn(
-            "Sources/TokiUsageReaders/MergedReader.swift",
+            "core/Sources/TokiUsageReaders/MergedReader.swift",
             result["changedPaths"],
         )
         self.assertIn("usage-pricing", self.lane_ids(result))
         self.assertEqual(result["scope"]["codexArgs"], ["--commit", merge_commit])
 
     def test_uncommitted_reader_change_activates_usage_privacy_and_testing(self) -> None:
-        reader = self.repo / "Sources" / "TokiUsageReaders" / "Reader.swift"
+        reader = self.repo / "core" / "Sources" / "TokiUsageReaders" / "Reader.swift"
         reader.write_text("struct Reader { let tokenCount: Int }\n", encoding="utf-8")
 
         result = self.resolve("--uncommitted")
@@ -201,7 +201,7 @@ class ScopeRoutingTests(unittest.TestCase):
         self.assertIn("concurrency-lifecycle", self.lane_ids(result))
 
     def test_direct_app_test_path_activates_testing_lane(self) -> None:
-        app_test = self.repo / "TokiTests" / "BehaviorTests.swift"
+        app_test = self.repo / "menubar" / "TokiTests" / "BehaviorTests.swift"
         app_test.write_text("func verifyBehavior() { _ = 1 }\n", encoding="utf-8")
 
         result = self.resolve("--uncommitted")
@@ -209,7 +209,7 @@ class ScopeRoutingTests(unittest.TestCase):
         self.assertIn("testing", self.lane_ids(result))
 
     def test_safe_untracked_directory_routes_individual_source_file(self) -> None:
-        service = self.repo / "Sources" / "TokiAgentCore" / "NewService.swift"
+        service = self.repo / "core" / "Sources" / "TokiAgentCore" / "NewService.swift"
         service.parent.mkdir()
         service.write_text("actor NewService {}\n", encoding="utf-8")
 
@@ -217,7 +217,7 @@ class ScopeRoutingTests(unittest.TestCase):
 
         self.assertTrue(result["safeToReview"])
         self.assertIn(
-            "Sources/TokiAgentCore/NewService.swift",
+            "core/Sources/TokiAgentCore/NewService.swift",
             result["untrackedReviewedPaths"],
         )
         self.assertTrue(

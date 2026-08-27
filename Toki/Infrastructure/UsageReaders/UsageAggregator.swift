@@ -6,15 +6,18 @@ struct UsageAggregationRequest: Equatable {
     let dateInterval: DateInterval
     let enabledReaderNames: [String: Bool]
     let includesEmptySourceRows: Bool
+    let liveContextWindow: LiveContextWindow?
 
     init(
         start: Date,
         end: Date,
         enabledReaderNames: [String: Bool],
-        includesEmptySourceRows: Bool) {
+        includesEmptySourceRows: Bool,
+        liveContextWindow: LiveContextWindow? = nil) {
         dateInterval = DateInterval(start: start, end: end)
         self.enabledReaderNames = enabledReaderNames
         self.includesEmptySourceRows = includesEmptySourceRows
+        self.liveContextWindow = liveContextWindow
     }
 
     var start: Date {
@@ -200,6 +203,7 @@ private extension UsageAggregator {
                         index: index,
                         reader: reader,
                         includeEmptySourceRows: request.includesEmptySourceRows,
+                        liveContextWindow: request.liveContextWindow,
                         from: request.start,
                         to: request.end)
                 }
@@ -292,6 +296,7 @@ private func readerFetchResult(
     index: Int,
     reader: any TokenReader,
     includeEmptySourceRows: Bool,
+    liveContextWindow: LiveContextWindow?,
     from startDate: Date,
     to endDate: Date) async -> ReaderFetchResult {
     guard !Task.isCancelled else {
@@ -323,7 +328,15 @@ private func readerFetchResult(
                 []
             }
         } else {
-            usage = try await reader.readUsage(from: startDate, to: endDate)
+            if let liveContextReader = reader as? any LiveContextConfigurableTokenReader,
+               let liveContextWindow {
+                usage = try await liveContextReader.readUsage(
+                    from: startDate,
+                    to: endDate,
+                    liveContextWindow: liveContextWindow)
+            } else {
+                usage = try await reader.readUsage(from: startDate, to: endDate)
+            }
             let sourceStats = [sourceStat(
                 from: usage,
                 source: reader.name,

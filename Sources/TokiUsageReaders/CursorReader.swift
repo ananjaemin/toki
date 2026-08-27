@@ -1,6 +1,8 @@
 import Foundation
 import TokiUsageCore
 
+// swiftlint:disable file_length
+
 #if os(Linux)
     import CSQLite
 #else
@@ -11,7 +13,7 @@ private let cursorModelLookupIdentifierChunkSize = 250
 
 /// Reads Cursor's global usage state from the app's local SQLite store.
 /// Aggregates one token-bearing assistant response per usage UUID.
-public struct CursorReader: TokenReader {
+public struct CursorReader: TokenReader, LiveContextConfigurableTokenReader {
     public let name = "Cursor"
     private let dbPathOverride: String?
 
@@ -24,6 +26,21 @@ public struct CursorReader: TokenReader {
     }
 
     public func readUsage(from startDate: Date, to endDate: Date) async throws -> RawTokenUsage {
+        let readStartedAt = Date()
+        let liveContextWindow: LiveContextWindow? = Self.shouldIncludeLiveComposerContext(
+            from: startDate,
+            to: endDate,
+            now: readStartedAt) ? .calendarDay : nil
+        return try await readUsage(
+            from: startDate,
+            to: endDate,
+            liveContextWindow: liveContextWindow)
+    }
+
+    public func readUsage(
+        from startDate: Date,
+        to endDate: Date,
+        liveContextWindow: LiveContextWindow?) async throws -> RawTokenUsage {
         guard !Task.isCancelled,
               FileManager.default.fileExists(atPath: dbPath) else {
             return RawTokenUsage()
@@ -42,22 +59,33 @@ public struct CursorReader: TokenReader {
             to: endDate)
         guard !Task.isCancelled else { return RawTokenUsage() }
 
-        let composerPayloads: [String] = if Self.shouldIncludeLiveComposerContext(from: startDate, to: endDate) {
+        let liveContextEndDate = switch liveContextWindow {
+        case .rolling24Hours:
+            max(endDate, Date())
+        case .calendarDay, nil:
+            endDate
+        }
+        let composerPayloads: [String] = if liveContextWindow != nil {
             try cursorQueryLiveComposerPayloads(
                 db: db,
                 from: startDate,
-                to: endDate)
+                to: liveContextEndDate)
         } else {
             []
         }
         guard !Task.isCancelled else { return RawTokenUsage() }
 
-        return Self.usage(
+        var usage = Self.usage(
             fromBubblePayloads: bubblePayloads,
-            composerPayloads: composerPayloads,
             source: name,
             from: startDate,
             to: endDate)
+        usage += Self.usage(
+            fromComposerPayloads: composerPayloads,
+            source: name,
+            from: startDate,
+            to: liveContextEndDate)
+        return usage
     }
 }
 
@@ -269,15 +297,12 @@ extension CursorReader {
         from startDate: Date,
         to endDate: Date,
         now: Date = Date(),
-        calendar: Calendar = .current) -> Bool {
-        // Date-ranged totals come from append-only bubble rows. The mutable
-        // composer snapshot is only safe to show as a live context overlay.
-        let isSingleDay =
-            calendar.dateComponents([.day], from: startDate, to: endDate).day == 1
-        return isSingleDay
-            && calendar.isDate(startDate, inSameDayAs: now)
-            && startDate <= now
-            && endDate > now
+        calendar: Calendar = .autoupdatingCurrent,
+        explicitlyCurrentWindow: Bool = false) -> Bool {
+        if explicitlyCurrentWindow { return true }
+        let currentDayStart = calendar.startOfDay(for: now)
+        let currentDayEnd = calendar.date(byAdding: .day, value: 1, to: currentDayStart)
+        return startDate == currentDayStart && endDate == currentDayEnd
     }
 }
 
@@ -368,8 +393,6 @@ private func cursorQueryLiveComposerPayloads(
     to endDate: Date) throws -> [String] {
     guard !Task.isCancelled else { return [] }
 
-    // composerData is a mutable live snapshot, not a historical log.
-    // Only surface it for today's active view as context-only metadata.
     let startMillis = Int64(startDate.timeIntervalSince1970 * 1000)
     let endMillis = Int64(endDate.timeIntervalSince1970 * 1000)
     let composerKeyBinds = cursorKeyRangeBinds(forPrefix: "composerData:")

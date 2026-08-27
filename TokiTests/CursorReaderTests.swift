@@ -180,34 +180,97 @@ final class CursorReaderUsageTests: XCTestCase {
         XCTAssertFalse(usage.supplemental.contains { $0.label == "Cursor Sessions" })
         XCTAssertFalse(usage.supplemental.contains { $0.label == "Cursor Reported Cost" })
     }
+}
 
-    func test_cursorReader_includesLiveComposerContextOnlyForTodaySingleDay() {
+final class CursorReaderLiveContextTests: XCTestCase {
+    func test_cursorReader_includesComposerUpdatedAfterRequestEndWhenReadLater() {
+        let requestEnd = tokiTestISODate("2026-04-10T12:00:00Z")
+        let updatedAt = requestEnd.addingTimeInterval(10)
+        let readEnd = requestEnd.addingTimeInterval(30)
+        let payload = cursorComposerData(
+            composerId: "live",
+            createdAtMillis: Int64(requestEnd.addingTimeInterval(-60).timeIntervalSince1970 * 1000),
+            lastUpdatedAtMillis: Int64(updatedAt.timeIntervalSince1970 * 1000),
+            modelName: "gpt-5.4",
+            contextTokensUsed: 1234,
+            usageData: [:],
+            linkedBubbleIDs: [])
+
+        let usage = CursorReader.usage(
+            fromComposerPayloads: [payload],
+            from: requestEnd.addingTimeInterval(-24 * 60 * 60),
+            to: readEnd)
+
+        XCTAssertEqual(
+            usage.supplemental
+                .filter { $0.label == "Cursor Context" }
+                .map(\.value),
+            [1234])
+    }
+
+    func test_cursorReader_includesLiveComposerContextOnlyForCurrentDayOrRollingWindow() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
         let now = tokiTestISODate("2026-04-10T12:00:00Z")
         let todayStart = tokiTestISODate("2026-04-10T00:00:00Z")
         let tomorrowStart = tokiTestISODate("2026-04-11T00:00:00Z")
         let yesterdayStart = tokiTestISODate("2026-04-09T00:00:00Z")
         let twoDaysLater = tokiTestISODate("2026-04-12T00:00:00Z")
+        let rollingStart = tokiTestISODate("2026-04-09T12:00:00Z")
 
         XCTAssertTrue(
             CursorReader.shouldIncludeLiveComposerContext(
                 from: todayStart,
                 to: tomorrowStart,
-                now: now))
+                now: now,
+                calendar: calendar))
         XCTAssertFalse(
             CursorReader.shouldIncludeLiveComposerContext(
                 from: yesterdayStart,
                 to: todayStart,
-                now: now))
+                now: now,
+                calendar: calendar))
         XCTAssertFalse(
             CursorReader.shouldIncludeLiveComposerContext(
                 from: todayStart,
                 to: twoDaysLater,
-                now: now))
+                now: now,
+                calendar: calendar))
         XCTAssertFalse(
             CursorReader.shouldIncludeLiveComposerContext(
                 from: tomorrowStart,
                 to: twoDaysLater,
-                now: now))
+                now: now,
+                calendar: calendar))
+        XCTAssertTrue(
+            CursorReader.shouldIncludeLiveComposerContext(
+                from: rollingStart,
+                to: now,
+                now: now,
+                calendar: calendar,
+                explicitlyCurrentWindow: true))
+
+        XCTAssertFalse(
+            CursorReader.shouldIncludeLiveComposerContext(
+                from: now.addingTimeInterval(-60 * 60),
+                to: now.addingTimeInterval(60 * 60),
+                now: now,
+                calendar: calendar))
+
+        let justAfterMidnight = tokiTestISODate("2026-04-11T00:00:30Z")
+        XCTAssertFalse(
+            CursorReader.shouldIncludeLiveComposerContext(
+                from: todayStart,
+                to: tomorrowStart,
+                now: justAfterMidnight,
+                calendar: calendar))
+        XCTAssertTrue(
+            CursorReader.shouldIncludeLiveComposerContext(
+                from: todayStart,
+                to: tomorrowStart,
+                now: justAfterMidnight,
+                calendar: calendar,
+                explicitlyCurrentWindow: true))
     }
 }
 

@@ -22,7 +22,7 @@ def finding(
     priority: str = "P2",
     title: str = "Reject stale snapshot",
     root_cause: str = "Snapshot generation is not compared",
-    file: str = "Sources/TokiSyncProtocol/SnapshotValidation.swift",
+    file: str = "core/Sources/TokiSyncProtocol/SnapshotValidation.swift",
     start: int = 20,
     end: int = 23,
 ) -> dict:
@@ -250,7 +250,7 @@ class FindingMergeTests(unittest.TestCase):
         self.assertIn("repository-relative", completed.stderr)
 
     def test_accepts_literal_backslash_in_posix_finding_path(self) -> None:
-        literal_path = r"Sources/TokiUsageReaders/..\outside.txt"
+        literal_path = r"core/Sources/TokiUsageReaders/..\outside.txt"
         result = self.write_result(
             "literal-backslash.json",
             lane_result("baseline", [finding(file=literal_path)]),
@@ -344,7 +344,12 @@ class FindingMergeTests(unittest.TestCase):
 
     def test_rejects_noncanonical_posix_path_segments(self) -> None:
         for index, invalid_path in enumerate(
-            ("/absolute.swift", "Sources//File.swift", "Sources/./File.swift", "Sources/../File.swift")
+            (
+                "/absolute.swift",
+                "core/Sources//File.swift",
+                "core/Sources/./File.swift",
+                "core/Sources/../File.swift",
+            )
         ):
             with self.subTest(path=invalid_path):
                 result = self.write_result(
@@ -425,7 +430,7 @@ class FindingMergeTests(unittest.TestCase):
         self.assertEqual(outputs[0][0]["occurrences"], 3)
 
     def test_preserves_whitespace_around_finding_path(self) -> None:
-        padded = finding(file=" Sources/TokiSyncProtocol/SnapshotValidation.swift ")
+        padded = finding(file=" core/Sources/TokiSyncProtocol/SnapshotValidation.swift ")
         path = self.write_result("padded.json", lane_result("baseline", [padded]))
 
         completed = self.run_merger("merge", str(path))
@@ -433,7 +438,7 @@ class FindingMergeTests(unittest.TestCase):
 
         self.assertEqual(
             merged["findings"][0]["file"],
-            " Sources/TokiSyncProtocol/SnapshotValidation.swift ",
+            " core/Sources/TokiSyncProtocol/SnapshotValidation.swift ",
         )
 
     def test_distinguishes_whitespace_and_unicode_normalization_in_paths(self) -> None:

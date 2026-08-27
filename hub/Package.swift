@@ -11,7 +11,7 @@ let package = Package(
         .executable(name: "toki-hub", targets: ["TokiHub"]),
     ],
     dependencies: [
-        .package(name: "TokiRemote", path: ".."),
+        .package(name: "TokiRemote", path: "../core"),
         .package(url: "https://github.com/vapor/vapor.git", exact: "4.117.2"),
     ],
     targets: [

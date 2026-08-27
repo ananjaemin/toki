@@ -10,7 +10,7 @@ Review build, package, resource, and CI changes for:
 - XcodeGen source/resource membership, build settings, generated project drift,
   and case-sensitive paths.
 - Package resolution or lockfile changes that are missing, unintended, or
-  inconsistent across root, Hub, and Xcode workspaces.
+  inconsistent across core, Hub, and Xcode workspaces.
 - CI jobs no longer exercising required builds or tests.
 
-Prefer `project.yml` plus regeneration over direct project-file edits.
+Prefer `menubar/project.yml` plus regeneration over direct project-file edits.

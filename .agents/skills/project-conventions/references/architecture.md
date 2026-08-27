@@ -2,30 +2,30 @@
 
 ## Directory Ownership
 
-- `Toki/App`
+- `menubar/Toki/App`
   - Owns app entry and macOS menu bar lifecycle.
   - Keep startup wiring small. Push feature behavior into feature, domain, or
     infrastructure types.
-- `Toki/Domain/Usage`
+- `menubar/Toki/Domain/Usage`
   - Owns usage data shapes, report building, export payloads, and formatting
     behavior that should not depend on SwiftUI.
-- `Toki/Domain/SecurityAudit`
+- `menubar/Toki/Domain/SecurityAudit`
   - Owns security audit domain models and value semantics.
-- `Toki/Infrastructure/UsageReaders`
+- `menubar/Toki/Infrastructure/UsageReaders`
   - Owns filesystem/database readers for Claude Code, Codex, Cursor, OpenCode,
     Gemini CLI, OpenClaw, pricing, and aggregation.
   - Keep reader failures diagnosable without exposing sensitive content.
-- `Toki/Infrastructure/SecurityAudit`
+- `menubar/Toki/Infrastructure/SecurityAudit`
   - Owns source discovery, rule matching, SQLite scanning, cache storage, and
     scanner implementation details.
-- `Toki/Infrastructure/Activity`
+- `menubar/Toki/Infrastructure/Activity`
   - Owns app activity monitoring and active-time estimation.
-- `Toki/Features/UsagePanel`
+- `menubar/Toki/Features/UsagePanel`
   - Owns the menu panel UI, settings, refresh coordination, source exports,
     model/project/hourly breakdowns, and presentation-oriented view models.
-- `Toki/Features/SecurityAudit`
+- `menubar/Toki/Features/SecurityAudit`
   - Owns security audit UI and user-facing audit state.
-- `TokiTests`
+- `menubar/TokiTests`
   - Mirror changed behavior with focused tests. Prefer test support helpers over
     duplicating large fixtures inline.
 

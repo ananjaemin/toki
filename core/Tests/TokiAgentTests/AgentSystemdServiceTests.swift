@@ -7,6 +7,7 @@ final class AgentSystemdServiceTests: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
+            .deletingLastPathComponent()
         let serviceURL = repositoryRoot.appendingPathComponent("packaging/systemd/toki-agent.service")
         let service = try String(contentsOf: serviceURL, encoding: .utf8)
 
@@ -53,6 +54,7 @@ final class AgentSystemdServiceTests: XCTestCase {
 
     func test_restartPolicyRateLimitsRepeatedFailures() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()

@@ -16,9 +16,10 @@ Choose the smallest useful check while iterating:
   swiftlint lint --strict --quiet
   ```
 
-- Project regeneration after `project.yml` changes:
+- Project regeneration after `menubar/project.yml` changes:
 
   ```bash
+  cd menubar
   xcodegen generate
   ```
 
@@ -26,7 +27,7 @@ Choose the smallest useful check while iterating:
 
   ```bash
   xcodebuild test \
-    -project Toki.xcodeproj \
+    -project menubar/Toki.xcodeproj \
     -scheme Toki \
     -destination "platform=macOS" \
     CODE_SIGN_IDENTITY="" \
@@ -49,6 +50,6 @@ Choose the smallest useful check while iterating:
 ## Before Finishing
 
 - Run relevant checks or explain exactly why they were not run.
-- If `xcodegen generate` changes `Toki.xcodeproj`, include that generated diff
-  with the source/config change.
+- If `xcodegen generate` changes `menubar/Toki.xcodeproj`, include that generated
+  diff with the source/config change.
 - Use `git diff --check` to catch whitespace problems before final response.

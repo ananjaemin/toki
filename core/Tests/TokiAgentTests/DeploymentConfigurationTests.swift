@@ -54,5 +54,6 @@ final class DeploymentConfigurationTests: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
+            .deletingLastPathComponent()
     }
 }

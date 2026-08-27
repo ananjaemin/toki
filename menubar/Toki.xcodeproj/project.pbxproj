@@ -238,7 +238,6 @@
 		4CEBBC19D10BB66820B603F3 /* SecurityAuditSQLiteScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityAuditSQLiteScanner.swift; sourceTree = "<group>"; };
 		4F46AB7DA4B172621AFA2EDA /* RemoteSyncConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteSyncConfigurationTests.swift; sourceTree = "<group>"; };
 		5012DD8BF341F42E263305CF /* RemoteSyncSettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteSyncSettingsViewModel.swift; sourceTree = "<group>"; };
-		50615A0F178BABDFD5E1B27F /* Toki */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Toki; path = .; sourceTree = SOURCE_ROOT; };
 		51802F42F6F62468A539BEB1 /* RemoteSyncLifecycleCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteSyncLifecycleCoordinator.swift; sourceTree = "<group>"; };
 		521CCFEC0E22E8C382682AC4 /* TokenVelocityMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenVelocityMonitorTests.swift; sourceTree = "<group>"; };
 		521CF88CBD64339B062AD498 /* LaunchAtLoginViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginViewModelTests.swift; sourceTree = "<group>"; };
@@ -293,6 +292,7 @@
 		913CCF13950428ECD3F610B8 /* rabbit_run_00.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = rabbit_run_00.png; sourceTree = "<group>"; };
 		91D9A34521436540EE5B9A97 /* RemoteSnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteSnapshotModels.swift; sourceTree = "<group>"; };
 		95C4DD5CE6E1BD400FEDC0A7 /* RemoteSyncSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteSyncSettingsView.swift; sourceTree = "<group>"; };
+		97275850A7B8FD0A859FFEB9 /* core */ = {isa = PBXFileReference; lastKnownFileType = folder; name = core; path = ../core; sourceTree = SOURCE_ROOT; };
 		9884E005FCBA7555405CB14E /* UsageModelEventOnlySourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageModelEventOnlySourceTests.swift; sourceTree = "<group>"; };
 		9BA9245A62D27EB82C373D8A /* SecurityAuditScannerCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityAuditScannerCacheTests.swift; sourceTree = "<group>"; };
 		9C2B5EEA5616B27CACD283D9 /* PanelTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelTab.swift; sourceTree = "<group>"; };
@@ -476,7 +476,7 @@
 		7A4EF5F3A6F1718366E71592 /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				50615A0F178BABDFD5E1B27F /* Toki */,
+				97275850A7B8FD0A859FFEB9 /* core */,
 			);
 			name = Packages;
 			sourceTree = "<group>";
@@ -786,7 +786,7 @@
 			mainGroup = F318A0B53D228A28053AC05F;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				23847341919A0DAA2DA7F175 /* XCLocalSwiftPackageReference "." */,
+				F027C70C851D251F07A8B1B4 /* XCLocalSwiftPackageReference "../core" */,
 			);
 			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
@@ -1224,9 +1224,9 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		23847341919A0DAA2DA7F175 /* XCLocalSwiftPackageReference "." */ = {
+		F027C70C851D251F07A8B1B4 /* XCLocalSwiftPackageReference "../core" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = .;
+			relativePath = ../core;
 		};
 /* End XCLocalSwiftPackageReference section */
 

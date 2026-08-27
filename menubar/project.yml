@@ -5,7 +5,7 @@ options:
     macOS: "13.0"
 packages:
   TokiRemote:
-    path: .
+    path: ../core
 targets:
   TokiTests:
     type: bundle.unit-test

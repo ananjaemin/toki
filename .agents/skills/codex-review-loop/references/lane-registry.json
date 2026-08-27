@@ -76,15 +76,15 @@
       "always": false,
       "prompt": "references/lanes/usage-pricing.md",
       "pathPatterns": [
-        "Toki/Domain/Usage/**",
-        "Toki/Infrastructure/UsageReaders/**",
-        "Sources/TokiUsageCore/**",
-        "Sources/TokiUsageReaders/**",
-        "TokiTests/*Usage*",
-        "TokiTests/*Pricing*",
-        "TokiTests/*Reader*",
-        "Tests/TokiAgentTests/*Usage*",
-        "Tests/TokiAgentTests/*Ledger*"
+        "menubar/Toki/Domain/Usage/**",
+        "menubar/Toki/Infrastructure/UsageReaders/**",
+        "core/Sources/TokiUsageCore/**",
+        "core/Sources/TokiUsageReaders/**",
+        "menubar/TokiTests/*Usage*",
+        "menubar/TokiTests/*Pricing*",
+        "menubar/TokiTests/*Reader*",
+        "core/Tests/TokiAgentTests/*Usage*",
+        "core/Tests/TokiAgentTests/*Ledger*"
       ],
       "semanticPatterns": [
         "(?i)\\b(token|usage|cost|price|pricing|model|attribution|timezone|date\\s*range|active\\s*time)\\b"
@@ -97,13 +97,13 @@
       "always": false,
       "prompt": "references/lanes/privacy-security.md",
       "pathPatterns": [
-        "Toki/Domain/SecurityAudit/**",
-        "Toki/Infrastructure/SecurityAudit/**",
-        "Sources/TokiDurableStorage/**",
-        "Sources/TokiUsageReaders/**",
-        "TokiTests/*Security*",
-        "Tests/**/*Security*",
-        "Tests/**/*Privacy*"
+        "menubar/Toki/Domain/SecurityAudit/**",
+        "menubar/Toki/Infrastructure/SecurityAudit/**",
+        "core/Sources/TokiDurableStorage/**",
+        "core/Sources/TokiUsageReaders/**",
+        "menubar/TokiTests/*Security*",
+        "core/Tests/**/*Security*",
+        "core/Tests/**/*Privacy*"
       ],
       "semanticPatterns": [
         "(?i)\\b(secret|credential|api[_ -]?key|jwt|private[_ -]?key|mask|redact|sqlite|database|transcript|prompt|telemetry)\\b"
@@ -116,14 +116,14 @@
       "always": false,
       "prompt": "references/lanes/remote-sync.md",
       "pathPatterns": [
-        "Toki/Infrastructure/RemoteSync/**",
-        "Sources/TokiSyncProtocol/**",
-        "Sources/TokiAgentCore/**",
-        "Sources/TokiAgent/**",
-        "Tests/TokiSyncProtocolTests/**",
-        "Tests/TokiAgentTests/**",
-        "TokiHub/Sources/**",
-        "TokiHub/Tests/**"
+        "menubar/Toki/Infrastructure/RemoteSync/**",
+        "core/Sources/TokiSyncProtocol/**",
+        "core/Sources/TokiAgentCore/**",
+        "core/Sources/TokiAgent/**",
+        "core/Tests/TokiSyncProtocolTests/**",
+        "core/Tests/TokiAgentTests/**",
+        "hub/Sources/**",
+        "hub/Tests/**"
       ],
       "semanticPatterns": [
         "(?i)\\b(nonce|cipher|encrypt|decrypt|signature|replay|rollback|snapshot|anchor|pairing|durable|hub\\s*route)\\b"
@@ -136,12 +136,12 @@
       "always": false,
       "prompt": "references/lanes/concurrency-lifecycle.md",
       "pathPatterns": [
-        "Toki/App/**",
-        "Toki/Features/**",
-        "Toki/Infrastructure/Activity/**",
-        "Toki/Infrastructure/RemoteSync/**",
-        "Sources/TokiAgentCore/**",
-        "TokiHub/Sources/**"
+        "menubar/Toki/App/**",
+        "menubar/Toki/Features/**",
+        "menubar/Toki/Infrastructure/Activity/**",
+        "menubar/Toki/Infrastructure/RemoteSync/**",
+        "core/Sources/TokiAgentCore/**",
+        "hub/Sources/**"
       ],
       "semanticPatterns": [
         "(?i)\\b(Task|actor|MainActor|Sendable|async|await|Timer|cancell?ation|lock|mutex)\\b"
@@ -154,11 +154,11 @@
       "always": false,
       "prompt": "references/lanes/swiftui-architecture.md",
       "pathPatterns": [
-        "Toki/App/**",
-        "Toki/Features/**",
-        "TokiTests/*Panel*",
-        "TokiTests/*ViewModel*",
-        "TokiTests/*MenuBar*"
+        "menubar/Toki/App/**",
+        "menubar/Toki/Features/**",
+        "menubar/TokiTests/*Panel*",
+        "menubar/TokiTests/*ViewModel*",
+        "menubar/TokiTests/*MenuBar*"
       ],
       "semanticPatterns": [
         "(?i)(SwiftUI|@State\\b|@StateObject\\b|@ObservedObject\\b|@Environment\\b|ViewModel\\b|NSStatusItem\\b|NSPanel\\b)"
@@ -171,18 +171,18 @@
       "always": false,
       "prompt": "references/lanes/build-portability.md",
       "pathPatterns": [
-        "Package.swift",
-        "Package.resolved",
-        "TokiHub/Package.swift",
-        "TokiHub/Package.resolved",
-        "project.yml",
+        "core/Package.swift",
+        "core/Package.resolved",
+        "hub/Package.swift",
+        "hub/Package.resolved",
+        "menubar/project.yml",
         ".swiftformat",
         ".swiftlint.yml",
         ".github/workflows/**",
-        "Toki.xcodeproj/**",
-        "Sources/CSQLite/**",
-        "Toki/Resources/**",
-        "Toki/Assets.xcassets/**"
+        "menubar/Toki.xcodeproj/**",
+        "core/Sources/CSQLite/**",
+        "menubar/Toki/Resources/**",
+        "menubar/Toki/Assets.xcassets/**"
       ],
       "semanticPatterns": [
         "(?i)\\b(PackageDescription|swift-tools-version|dependency|xcodegen|resource|Vapor|Linux|CSQLite|Package\\.resolved)\\b"
@@ -195,13 +195,13 @@
       "always": false,
       "prompt": "references/lanes/testing.md",
       "pathPatterns": [
-        "Toki/**/*.swift",
-        "TokiTests/*.swift",
-        "TokiTests/**/*.swift",
-        "Sources/**/*.swift",
-        "Tests/**/*.swift",
-        "TokiHub/Sources/**/*.swift",
-        "TokiHub/Tests/**/*.swift"
+        "menubar/Toki/**/*.swift",
+        "menubar/TokiTests/*.swift",
+        "menubar/TokiTests/**/*.swift",
+        "core/Sources/**/*.swift",
+        "core/Tests/**/*.swift",
+        "hub/Sources/**/*.swift",
+        "hub/Tests/**/*.swift"
       ],
       "semanticPatterns": [
         "(?i)\\b(XCTest|Testing|test[A-Z_]|assert|fixture|mock|stub)\\b"

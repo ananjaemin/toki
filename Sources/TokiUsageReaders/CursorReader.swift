@@ -41,6 +41,7 @@ public struct CursorReader: TokenReader, LiveContextConfigurableTokenReader {
         from startDate: Date,
         to endDate: Date,
         liveContextWindow: LiveContextWindow?) async throws -> RawTokenUsage {
+        let readStartedAt = Date()
         guard !Task.isCancelled,
               FileManager.default.fileExists(atPath: dbPath) else {
             return RawTokenUsage()
@@ -52,6 +53,10 @@ public struct CursorReader: TokenReader, LiveContextConfigurableTokenReader {
             throw CursorSQLiteError(operation: "open", database: db)
         }
         sqlite3_busy_timeout(db, 2000)
+        guard sqlite3_exec(db, "BEGIN DEFERRED TRANSACTION", nil, nil, nil) == SQLITE_OK else {
+            throw CursorSQLiteError(operation: "begin read transaction", database: db)
+        }
+        defer { sqlite3_exec(db, "ROLLBACK", nil, nil, nil) }
 
         let bubblePayloads = try cursorQueryBubblePayloads(
             db: db,
@@ -59,17 +64,16 @@ public struct CursorReader: TokenReader, LiveContextConfigurableTokenReader {
             to: endDate)
         guard !Task.isCancelled else { return RawTokenUsage() }
 
-        let liveContextEndDate = switch liveContextWindow {
-        case .rolling24Hours:
-            max(endDate, Date())
-        case .calendarDay, nil:
-            endDate
-        }
+        let liveContextBounds = Self.liveContextDateInterval(
+            window: liveContextWindow,
+            requestStart: startDate,
+            requestEnd: endDate,
+            readStartedAt: readStartedAt)
         let composerPayloads: [String] = if liveContextWindow != nil {
             try cursorQueryLiveComposerPayloads(
                 db: db,
-                from: startDate,
-                to: liveContextEndDate)
+                from: liveContextBounds.start,
+                to: liveContextBounds.end)
         } else {
             []
         }
@@ -83,8 +87,8 @@ public struct CursorReader: TokenReader, LiveContextConfigurableTokenReader {
         usage += Self.usage(
             fromComposerPayloads: composerPayloads,
             source: name,
-            from: startDate,
-            to: liveContextEndDate)
+            from: liveContextBounds.start,
+            to: liveContextBounds.end)
         return usage
     }
 }
@@ -303,6 +307,21 @@ extension CursorReader {
         let currentDayStart = calendar.startOfDay(for: now)
         let currentDayEnd = calendar.date(byAdding: .day, value: 1, to: currentDayStart)
         return startDate == currentDayStart && endDate == currentDayEnd
+    }
+
+    static func liveContextDateInterval(
+        window: LiveContextWindow?,
+        requestStart: Date,
+        requestEnd: Date,
+        readStartedAt: Date) -> DateInterval {
+        switch window {
+        case .rolling24Hours:
+            DateInterval(
+                start: readStartedAt.addingTimeInterval(-24 * 60 * 60),
+                end: readStartedAt)
+        case .calendarDay, nil:
+            DateInterval(start: requestStart, end: requestEnd)
+        }
     }
 }
 

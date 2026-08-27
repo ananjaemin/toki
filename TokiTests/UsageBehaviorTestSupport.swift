@@ -37,6 +37,74 @@ struct CancellableUsageRequestSnapshot {
     let cancellationCount: Int
 }
 
+actor ManualCancellableRequestGate {
+    private var requestCount = 0
+    private var cancellationCount = 0
+    private var blockedRequests: Set<Int>
+    private var releaseContinuations: [Int: CheckedContinuation<Void, Never>] = [:]
+    private var requestWaiters: [(target: Int, continuation: CheckedContinuation<Void, Never>)] = []
+
+    init(blockedRequests: Set<Int>) {
+        self.blockedRequests = blockedRequests
+    }
+
+    func beginRequest() -> Int {
+        requestCount += 1
+        let ready = requestWaiters.filter { requestCount >= $0.target }
+        requestWaiters.removeAll { requestCount >= $0.target }
+        ready.forEach { $0.continuation.resume() }
+        return requestCount
+    }
+
+    func waitForRelease(_ requestNumber: Int) async {
+        guard blockedRequests.contains(requestNumber) else { return }
+        await withCheckedContinuation { continuation in
+            releaseContinuations[requestNumber] = continuation
+        }
+    }
+
+    func cancel(_ requestNumber: Int) {
+        cancellationCount += 1
+        blockedRequests.remove(requestNumber)
+        releaseContinuations.removeValue(forKey: requestNumber)?.resume()
+    }
+
+    func release(_ requestNumber: Int) {
+        blockedRequests.remove(requestNumber)
+        releaseContinuations.removeValue(forKey: requestNumber)?.resume()
+    }
+
+    func waitForRequestCount(_ target: Int) async {
+        guard requestCount < target else { return }
+        await withCheckedContinuation { continuation in
+            requestWaiters.append((target, continuation))
+        }
+    }
+
+    func snapshot() -> CancellableUsageRequestSnapshot {
+        CancellableUsageRequestSnapshot(
+            requestCount: requestCount,
+            cancellationCount: cancellationCount)
+    }
+}
+
+struct ManuallyBlockedSequencedReader: TokenReader {
+    let name: String
+    let gate: ManualCancellableRequestGate
+    let handler: @Sendable (Int, Date, Date) -> RawTokenUsage
+
+    func readUsage(from startDate: Date, to endDate: Date) async throws -> RawTokenUsage {
+        let requestNumber = await gate.beginRequest()
+        await withTaskCancellationHandler {
+            await gate.waitForRelease(requestNumber)
+        } onCancel: {
+            Task { await gate.cancel(requestNumber) }
+        }
+        try Task.checkCancellation()
+        return handler(requestNumber, startDate, endDate)
+    }
+}
+
 actor CancellableUsageRequestTracker {
     private var requestCount = 0
     private var cancellationCount = 0
@@ -71,17 +139,20 @@ actor CancellableUsageRequestTracker {
 struct CancellableSequencedReader: TokenReader {
     let name: String
     let blockedRequestNumbers: Set<Int>
+    let blockDuration: Duration
     let tracker: CancellableUsageRequestTracker
     let handler: @Sendable (Int, Date, Date) -> RawTokenUsage
 
     init(
         name: String,
         blockedRequestNumber: Int,
+        blockDuration: Duration = .seconds(30),
         tracker: CancellableUsageRequestTracker,
         handler: @escaping @Sendable (Date, Date) -> RawTokenUsage) {
         self.init(
             name: name,
             blockedRequestNumbers: [blockedRequestNumber],
+            blockDuration: blockDuration,
             tracker: tracker,
             requestHandler: { _, startDate, endDate in handler(startDate, endDate) })
     }
@@ -89,11 +160,13 @@ struct CancellableSequencedReader: TokenReader {
     init(
         name: String,
         blockedRequestNumbers: Set<Int>,
+        blockDuration: Duration = .seconds(30),
         tracker: CancellableUsageRequestTracker,
         handler: @escaping @Sendable (Date, Date) -> RawTokenUsage) {
         self.init(
             name: name,
             blockedRequestNumbers: blockedRequestNumbers,
+            blockDuration: blockDuration,
             tracker: tracker,
             requestHandler: { _, startDate, endDate in handler(startDate, endDate) })
     }
@@ -101,10 +174,12 @@ struct CancellableSequencedReader: TokenReader {
     init(
         name: String,
         blockedRequestNumbers: Set<Int>,
+        blockDuration: Duration = .seconds(30),
         tracker: CancellableUsageRequestTracker,
         requestHandler: @escaping @Sendable (Int, Date, Date) -> RawTokenUsage) {
         self.name = name
         self.blockedRequestNumbers = blockedRequestNumbers
+        self.blockDuration = blockDuration
         self.tracker = tracker
         handler = requestHandler
     }
@@ -113,7 +188,7 @@ struct CancellableSequencedReader: TokenReader {
         let requestNumber = await tracker.beginRequest()
         if blockedRequestNumbers.contains(requestNumber) {
             do {
-                try await Task.sleep(for: .seconds(30))
+                try await Task.sleep(for: blockDuration)
             } catch {
                 await tracker.recordCancellation()
                 throw error

@@ -81,6 +81,9 @@ final class UsagePanelRefreshCoordinator {
     private var refreshLoopTask: Task<Void, Never>?
     private var settingsRefreshTask: Task<Void, Never>?
     private var settingsRefreshGeneration: UInt64 = 0
+    private var hasPendingSettingsRefresh = false
+    private var isRunningSettingsRefresh = false
+    private var pendingSettingsRefreshAction: (@MainActor (Bool, Bool) async -> Void)?
     private var pendingRefreshesPeriodTokenTotals = false
     private var pendingUsesWindowResultCache = true
 
@@ -106,13 +109,21 @@ final class UsagePanelRefreshCoordinator {
         refreshesPeriodTokenTotals: Bool,
         usesWindowResultCache: Bool,
         refresh: @escaping @MainActor (Bool, Bool) async -> Void) {
-        if settingsRefreshTask == nil {
+        if !hasPendingSettingsRefresh {
             pendingRefreshesPeriodTokenTotals = refreshesPeriodTokenTotals
             pendingUsesWindowResultCache = usesWindowResultCache
         } else {
             pendingRefreshesPeriodTokenTotals = pendingRefreshesPeriodTokenTotals || refreshesPeriodTokenTotals
             pendingUsesWindowResultCache = pendingUsesWindowResultCache && usesWindowResultCache
         }
+        hasPendingSettingsRefresh = true
+        pendingSettingsRefreshAction = refresh
+        guard !isRunningSettingsRefresh else { return }
+
+        startPendingSettingsRefresh()
+    }
+
+    private func startPendingSettingsRefresh() {
         settingsRefreshTask?.cancel()
         settingsRefreshGeneration &+= 1
         let generation = settingsRefreshGeneration
@@ -121,11 +132,19 @@ final class UsagePanelRefreshCoordinator {
             guard !Task.isCancelled else { return }
             let refreshesPeriodTokenTotals = pendingRefreshesPeriodTokenTotals
             let usesWindowResultCache = pendingUsesWindowResultCache
-            await refresh(refreshesPeriodTokenTotals, usesWindowResultCache)
-            guard generation == settingsRefreshGeneration else { return }
-            settingsRefreshTask = nil
+            guard let refresh = pendingSettingsRefreshAction else { return }
+            hasPendingSettingsRefresh = false
             pendingRefreshesPeriodTokenTotals = false
             pendingUsesWindowResultCache = true
+            pendingSettingsRefreshAction = nil
+            isRunningSettingsRefresh = true
+            await refresh(refreshesPeriodTokenTotals, usesWindowResultCache)
+            guard generation == settingsRefreshGeneration else { return }
+            isRunningSettingsRefresh = false
+            settingsRefreshTask = nil
+            if hasPendingSettingsRefresh {
+                startPendingSettingsRefresh()
+            }
         }
     }
 
@@ -135,6 +154,9 @@ final class UsagePanelRefreshCoordinator {
         settingsRefreshGeneration &+= 1
         refreshLoopTask = nil
         settingsRefreshTask = nil
+        hasPendingSettingsRefresh = false
+        isRunningSettingsRefresh = false
+        pendingSettingsRefreshAction = nil
         pendingRefreshesPeriodTokenTotals = false
         pendingUsesWindowResultCache = true
     }

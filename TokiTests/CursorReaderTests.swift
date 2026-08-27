@@ -183,6 +183,20 @@ final class CursorReaderUsageTests: XCTestCase {
 }
 
 final class CursorReaderLiveContextTests: XCTestCase {
+    func test_cursorReader_usesReadStartForExactRollingContextBounds() {
+        let requestEnd = tokiTestISODate("2026-04-10T12:00:00Z")
+        let readStartedAt = requestEnd.addingTimeInterval(30)
+
+        let interval = CursorReader.liveContextDateInterval(
+            window: .rolling24Hours,
+            requestStart: requestEnd.addingTimeInterval(-24 * 60 * 60),
+            requestEnd: requestEnd,
+            readStartedAt: readStartedAt)
+
+        XCTAssertEqual(interval.end, readStartedAt)
+        XCTAssertEqual(interval.duration, 24 * 60 * 60)
+    }
+
     func test_cursorReader_includesComposerUpdatedAfterRequestEndWhenReadLater() {
         let requestEnd = tokiTestISODate("2026-04-10T12:00:00Z")
         let updatedAt = requestEnd.addingTimeInterval(10)

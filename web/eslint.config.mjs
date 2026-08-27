@@ -1,10 +1,18 @@
 import { defineConfig, globalIgnores } from 'eslint/config';
 import nextVitals from 'eslint-config-next/core-web-vitals';
-import nextTypescript from 'eslint-config-next/typescript';
+
+// Biome owns general linting; ESLint keeps only Next.js-specific rules.
+const nextOnlyConfig = nextVitals.map((entry) => ({
+  ...entry,
+  rules: Object.fromEntries(
+    Object.entries(entry.rules ?? {}).filter(([rule]) =>
+      rule.startsWith('@next/next/'),
+    ),
+  ),
+}));
 
 const config = defineConfig([
-  ...nextVitals,
-  ...nextTypescript,
+  ...nextOnlyConfig,
   globalIgnores([
     '.next/**',
     '.source/**',

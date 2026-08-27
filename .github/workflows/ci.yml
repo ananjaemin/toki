@@ -42,15 +42,17 @@ jobs:
         run: swiftlint lint --strict --quiet
 
       - name: Run protocol and Agent tests
-        run: swift test
+        run: swift test --package-path core
 
       - name: Build macOS Agent
-        run: swift build -c release --product toki-agent
+        run: swift build --package-path core -c release --product toki-agent
 
       - name: Generate Xcode project
         run: xcodegen generate
+        working-directory: menubar
 
       - name: Build
+        working-directory: menubar
         run: |
           xcodebuild build \
             -project Toki.xcodeproj \
@@ -61,6 +63,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO
 
       - name: Run Tests
+        working-directory: menubar
         run: |
           xcodebuild test \
             -project Toki.xcodeproj \
@@ -73,9 +76,9 @@ jobs:
       - name: Verify package lockfiles are unchanged
         run: >-
           git diff --exit-code --
-          Package.resolved
-          TokiHub/Package.resolved
-          Toki.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+          core/Package.resolved
+          hub/Package.resolved
+          menubar/Toki.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
   remote-linux-agent:
     name: Linux Agent (Swift 5.9.2)
@@ -88,7 +91,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Snapshot package lockfile
-        run: cp Package.resolved "$RUNNER_TEMP/toki-agent-Package.resolved"
+        run: cp core/Package.resolved "$RUNNER_TEMP/toki-agent-Package.resolved"
 
       - name: Install SQLite development headers
         run: |
@@ -101,13 +104,13 @@ jobs:
           swift --version | grep -q "Swift version 5.9.2"
 
       - name: Run protocol and Agent tests
-        run: swift test
+        run: swift test --package-path core
 
       - name: Build Linux Agent
-        run: swift build -c release --product toki-agent
+        run: swift build --package-path core -c release --product toki-agent
 
       - name: Verify package lockfiles are unchanged
-        run: diff -u "$RUNNER_TEMP/toki-agent-Package.resolved" Package.resolved
+        run: diff -u "$RUNNER_TEMP/toki-agent-Package.resolved" core/Package.resolved
 
   remote-linux-hub:
     name: Linux Hub (Swift 5.9.2)
@@ -120,7 +123,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Snapshot package lockfile
-        run: cp TokiHub/Package.resolved "$RUNNER_TEMP/toki-hub-Package.resolved"
+        run: cp hub/Package.resolved "$RUNNER_TEMP/toki-hub-Package.resolved"
 
       - name: Verify Swift version
         run: |
@@ -128,10 +131,10 @@ jobs:
           swift --version | grep -q "Swift version 5.9.2"
 
       - name: Run Hub tests
-        run: swift test --package-path TokiHub
+        run: swift test --package-path hub
 
       - name: Build Linux Hub
-        run: swift build --package-path TokiHub -c release --product toki-hub
+        run: swift build --package-path hub -c release --product toki-hub
 
       - name: Verify package lockfiles are unchanged
-        run: diff -u "$RUNNER_TEMP/toki-hub-Package.resolved" TokiHub/Package.resolved
+        run: diff -u "$RUNNER_TEMP/toki-hub-Package.resolved" hub/Package.resolved

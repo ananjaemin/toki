@@ -26,7 +26,7 @@ jobs:
     env:
       APP_NAME: Toki
       SCHEME: Toki
-      PROJECT: Toki.xcodeproj
+      PROJECT: menubar/Toki.xcodeproj
       ARCHIVE_PATH: build/Toki.xcarchive
       EXPORT_PATH: build/export
       ARTIFACT_PATH: build/artifacts
@@ -56,6 +56,7 @@ jobs:
 
       - name: Generate Xcode project
         run: xcodegen generate
+        working-directory: menubar
 
       - name: Import signing certificate
         if: env.HAS_SIGNING == 'true'

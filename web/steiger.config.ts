@@ -33,9 +33,17 @@ export default defineConfig([
     },
   },
   {
-    files: ['./src/widgets/hero-3d/**'],
+    files: [
+      './src/widgets/download-cta/**',
+      './src/widgets/hero-3d/**',
+      './src/widgets/privacy-panel/**',
+      './src/widgets/screenshot-strip/**',
+      './src/widgets/supported-agents/**',
+      './src/widgets/work-time-showcase/**',
+    ],
     rules: {
-      // The hero is intentionally isolated behind one landing-page host.
+      // Landing sections are intentionally isolated widget slices with a
+      // single landing-page host, per the luminous-glass design mapping.
       'fsd/insignificant-slice': 'off',
     },
   },

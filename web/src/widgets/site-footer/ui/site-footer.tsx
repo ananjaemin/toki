@@ -1,35 +1,36 @@
 import Link from 'next/link';
 
 import { siteConfig } from '@/shared/config';
+import { SectionShell } from '@/shared/ui';
 
 export function SiteFooter() {
   return (
-    <footer className="border-t">
-      <div className="mx-auto flex max-w-6xl flex-col gap-3 px-6 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between lg:px-8">
-        <p>© {new Date().getFullYear()} Toki.</p>
-        <nav aria-label="Footer navigation" className="flex flex-wrap gap-4">
+    <footer>
+      <SectionShell className="flex flex-col gap-1.5 border-t border-toki-line py-[1.625rem] pb-9 font-mono text-[10px] text-[#74807b] sm:flex-row sm:justify-between sm:gap-[1.125rem]">
+        <span>© TOKI · LOCAL-FIRST OBSERVABILITY</span>
+        <span className="flex gap-4">
           <Link
+            className="transition-colors hover:text-toki-green"
             href="/docs"
-            className="underline-offset-4 hover:text-foreground hover:underline"
           >
-            Docs
+            DOCS
           </Link>
           <Link
+            className="transition-colors hover:text-toki-green"
             href="/download"
-            className="underline-offset-4 hover:text-foreground hover:underline"
           >
-            Download
+            DOWNLOAD
           </Link>
           <a
+            className="transition-colors hover:text-toki-green"
             href={siteConfig.links.github}
-            target="_blank"
             rel="noreferrer"
-            className="underline-offset-4 hover:text-foreground hover:underline"
+            target="_blank"
           >
-            GitHub
+            github.com/choi138/toki
           </a>
-        </nav>
-      </div>
+        </span>
+      </SectionShell>
     </footer>
   );
 }

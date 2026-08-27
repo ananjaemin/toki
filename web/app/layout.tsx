@@ -3,13 +3,22 @@ import type { ReactNode } from 'react';
 
 import { AppProviders } from '@/_app/providers';
 import '@/_app/styles/globals.css';
+import { siteConfig } from '@/shared/config';
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteConfig.url),
   title: {
-    default: 'Toki',
-    template: '%s | Toki',
+    default: siteConfig.name,
+    template: `%s | ${siteConfig.name}`,
   },
-  description: 'A local-first macOS menu bar app for AI coding usage.',
+  description: siteConfig.description,
+  openGraph: {
+    description: siteConfig.description,
+    siteName: siteConfig.name,
+    title: siteConfig.name,
+    type: 'website',
+    url: siteConfig.url,
+  },
 };
 
 export const viewport: Viewport = {

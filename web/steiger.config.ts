@@ -25,4 +25,11 @@ export default defineConfig([
       'fsd/insignificant-slice': 'off',
     },
   },
+  {
+    files: ['./src/entities/release/**'],
+    rules: {
+      // The release entity is a public type boundary until fetching lands.
+      'fsd/insignificant-slice': 'off',
+    },
+  },
 ]);

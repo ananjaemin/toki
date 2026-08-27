@@ -33,6 +33,7 @@ spent.
 | `menubar/` | The macOS menu bar app (`Toki.app`), its tests, and screenshots. |
 | `hub/` | `toki-hub`, the ciphertext-only Vapor server for remote usage sync. |
 | `ios/` | Placeholder for the upcoming iPhone app, which will reuse `core/`. Not started yet. |
+| `web/` | The official website (landing, docs, download) — Next.js with Feature-Sliced Design. |
 
 ## Install
 

@@ -1,0 +1,25 @@
+# dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Fumadocs
+.source/
+
+# tests and tooling
+coverage/
+*.tsbuildinfo
+
+# local environment
+.env*
+!.env.example
+
+# editor and OS files
+.DS_Store
+*.swp
+
+# logs
+*.log
+pnpm-debug.log*

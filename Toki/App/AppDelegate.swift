@@ -1,5 +1,9 @@
 import AppKit
 
+func shouldStartPricingCatalogRefresh(isXCTestLoaded: Bool = NSClassFromString("XCTestCase") != nil) -> Bool {
+    !isXCTestLoaded
+}
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let tokenVelocityState = TokenVelocityState()
@@ -24,7 +28,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panelController.setup()
         activityController.start()
         summaryController.start()
-        startPricingCatalogRefreshLoop()
+        if shouldStartPricingCatalogRefresh() {
+            startPricingCatalogRefreshLoop()
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

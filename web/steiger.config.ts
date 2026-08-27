@@ -32,4 +32,11 @@ export default defineConfig([
       'fsd/insignificant-slice': 'off',
     },
   },
+  {
+    files: ['./src/widgets/hero-3d/**'],
+    rules: {
+      // The hero is intentionally isolated behind one landing-page host.
+      'fsd/insignificant-slice': 'off',
+    },
+  },
 ]);

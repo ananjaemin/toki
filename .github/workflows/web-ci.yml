@@ -44,7 +44,13 @@ jobs:
             - name: Install dependencies
               run: pnpm install --frozen-lockfile
 
-            - name: Lint
+            - name: Check formatting with Biome
+              run: pnpm format:check
+
+            - name: Lint with Biome
+              run: pnpm lint:biome
+
+            - name: Lint Next.js
               run: pnpm lint
 
             - name: Check FSD boundaries

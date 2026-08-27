@@ -1,3 +1,6 @@
 # Toki iPhone
 
-iPhone 앱 예정. `core/`의 `TokiUsageCore`, `TokiSyncProtocol`, `TokiDurableStorage` 재사용을 전제로 하며 아직 착수하지 않았습니다.
+Placeholder for the upcoming Toki iPhone app. It will reuse the cross-platform
+libraries in `core/` — `TokiUsageCore`, `TokiSyncProtocol`, and
+`TokiDurableStorage` — to display token usage synced from running servers and
+Macs. Not started yet.

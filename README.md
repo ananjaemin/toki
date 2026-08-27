@@ -25,6 +25,15 @@ spent.
 
 ---
 
+## Repository Layout
+
+| Folder | Contents |
+| --- | --- |
+| `core/` | Cross-platform SwiftPM package (`TokiRemote`): usage models, local readers, encrypted sync protocol, durable storage, and the Linux-compatible `toki-agent`. Shared by every other target. |
+| `menubar/` | The macOS menu bar app (`Toki.app`), its tests, and screenshots. |
+| `hub/` | `toki-hub`, the ciphertext-only Vapor server for remote usage sync. |
+| `ios/` | Placeholder for the upcoming iPhone app, which will reuse `core/`. Not started yet. |
+
 ## Install
 
 ### Download the app

@@ -1,83 +1,72 @@
-'use client';
+import { ArrowDownToLine, MoveRight } from 'lucide-react';
 
-import { useFrame } from '@react-three/fiber';
-import dynamic from 'next/dynamic';
-import { Suspense, useEffect, useRef, useState } from 'react';
-import type { Mesh } from 'three';
+import { siteConfig } from '@/shared/config';
+import { Button, Pill, SectionShell } from '@/shared/ui';
 
-import { HeroFallback } from './hero-fallback';
-
-const DynamicCanvas = dynamic(
-  () => import('@react-three/fiber').then((module) => module.Canvas),
-  {
-    loading: () => <HeroFallback />,
-    ssr: false,
-  },
-);
-
-const constrainedMotionQuery =
-  '(max-width: 767px), (prefers-reduced-motion: reduce)';
-
-function RotatingMesh() {
-  const meshRef = useRef<Mesh>(null);
-
-  useFrame((_state, delta) => {
-    if (!meshRef.current) {
-      return;
-    }
-
-    meshRef.current.rotation.x += delta * 0.22;
-    meshRef.current.rotation.y += delta * 0.38;
-  });
-
-  return (
-    <mesh ref={meshRef} rotation={[0.35, 0.6, 0]}>
-      <icosahedronGeometry args={[1.25, 1]} />
-      <meshStandardMaterial color="#d4d4d8" metalness={0.25} roughness={0.42} />
-    </mesh>
-  );
-}
+import { HeroArt } from './hero-art';
 
 export function Hero3D() {
-  const [showFallback, setShowFallback] = useState(true);
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia(constrainedMotionQuery);
-    const updatePreference = () => setShowFallback(mediaQuery.matches);
-
-    updatePreference();
-    mediaQuery.addEventListener('change', updatePreference);
-
-    return () => mediaQuery.removeEventListener('change', updatePreference);
-  }, []);
-
-  if (showFallback) {
-    return <HeroFallback />;
-  }
-
   return (
-    <div
-      aria-hidden="true"
-      className="h-72 w-full overflow-hidden rounded-2xl border bg-muted/40 sm:h-80"
-      data-hero-canvas
-    >
-      <Suspense fallback={<HeroFallback />}>
-        <DynamicCanvas
-          camera={{ fov: 42, position: [0, 0, 4.2] }}
-          dpr={[1, 1.5]}
-          fallback={<HeroFallback />}
-          gl={{
-            alpha: true,
-            antialias: true,
-            powerPreference: 'high-performance',
-          }}
+    <SectionShell className="relative pt-12 pb-20 lg:pt-[5.8rem] lg:pb-[5.4rem]">
+      <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(26.25rem,1.1fr)] lg:gap-[clamp(2.6rem,7vw,6.9rem)]">
+        <div className="text-center lg:text-left">
+          <Pill>Local-first menu bar app</Pill>
+          <h1 className="mx-auto mt-5 mb-6 max-w-[39.4rem] text-[clamp(3.25rem,6.45vw,5.5rem)] leading-[0.99] font-semibold tracking-[-0.061em] text-balance lg:mx-0">
+            The work beneath{' '}
+            <span className="text-toki-green">the output.</span>
+          </h1>
+          <p className="mx-auto mb-7 max-w-[30.3rem] text-lg leading-[1.55] tracking-[-0.025em] text-[#bec6c3] lg:mx-0">
+            Toki makes the moving parts of AI-assisted work legible: tokens,
+            cost, project attribution, and the time agents actually spend
+            working.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+            <Button asChild size="lg" variant="glow">
+              <a href={siteConfig.links.latestRelease}>
+                Download free release
+                <ArrowDownToLine aria-hidden="true" />
+              </a>
+            </Button>
+            <Button
+              asChild
+              className="text-sm font-semibold text-[#d7dedb] hover:text-toki-blue"
+              size="lg"
+              variant="ghost"
+            >
+              <a href="#time">
+                See how time works
+                <MoveRight aria-hidden="true" />
+              </a>
+            </Button>
+          </div>
+          <div className="mt-11 flex items-center justify-center gap-3 font-mono text-[11px] text-[#818c88] before:h-px before:w-[2.125rem] before:bg-toki-line before:content-[''] lg:justify-start">
+            MACOS · LOCAL DATA · GITHUB RELEASES
+          </div>
+        </div>
+        <div
+          aria-label="Visualization of parallel agent activity"
+          className="relative min-h-[26rem] sm:min-h-[31rem] lg:min-h-[40.6rem]"
+          role="img"
         >
-          <ambientLight intensity={1.4} />
-          <directionalLight intensity={2.6} position={[3, 4, 5]} />
-          <directionalLight intensity={0.8} position={[-4, -2, 2]} />
-          <RotatingMesh />
-        </DynamicCanvas>
-      </Suspense>
-    </div>
+          <HeroArt />
+          <div className="glass-panel absolute top-[18%] left-0 z-[3] rounded-[15px] bg-gradient-to-br from-[rgba(18,20,22,0.82)] to-[rgba(31,38,37,0.63)] px-4 py-3.5 font-mono backdrop-blur-lg">
+            <span className="block text-[10px] tracking-[0.055em] text-[#9ea8a5]">
+              AI WORK TIME
+            </span>
+            <strong className="mt-1 block text-xl font-medium tracking-[-0.05em] tabular-nums">
+              4h 13m
+            </strong>
+          </div>
+          <div className="glass-panel absolute right-0 bottom-[17%] z-[3] rounded-[15px] bg-gradient-to-br from-[rgba(18,20,22,0.82)] to-[rgba(31,38,37,0.63)] px-4 py-3.5 font-mono backdrop-blur-lg">
+            <span className="block text-[10px] tracking-[0.055em] text-[#9ea8a5]">
+              PARALLEL
+            </span>
+            <strong className="mt-1 block text-xl font-medium tracking-[-0.05em] text-toki-blue tabular-nums">
+              1.21×
+            </strong>
+          </div>
+        </div>
+      </div>
+    </SectionShell>
   );
 }

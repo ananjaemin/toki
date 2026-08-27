@@ -95,19 +95,15 @@ final class UsageServiceComparisonRefreshTests: XCTestCase {
     }
 
     func test_usageService_ignoresCanceledYesterdayComparisonAfterSelectionChanges() async throws {
-        let gate = BlockingReaderGate()
+        let recorder = MockReaderRecorder()
         let today = Calendar.current.startOfDay(for: Date())
-        let yesterday = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -1, to: today))
         let pastDay = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -2, to: today))
-        let reader = ConditionalBlockingMockReader(
+        let reader = MockReader(
             name: "Mock",
-            blockedStart: yesterday,
-            gate: gate) { startDate, _ in
+            recorder: recorder) { startDate, _ in
                 switch startDate {
                 case today:
                     mockUsage(totalTokens: 120)
-                case yesterday:
-                    mockUsage(totalTokens: 77)
                 case pastDay:
                     mockUsage(totalTokens: 42)
                 default:
@@ -115,16 +111,18 @@ final class UsageServiceComparisonRefreshTests: XCTestCase {
                 }
             }
 
-        let service = await MainActor.run { UsageService(readers: [reader]) }
+        let service = await MainActor.run {
+            UsageService(readers: [reader], comparisonDebounce: .seconds(30))
+        }
         await service.refresh()
-        await gate.waitForFirstRequest()
 
         await MainActor.run { service.selectDay(pastDay) }
-        await gate.release()
         try? await Task.sleep(for: .milliseconds(20))
 
+        let calls = await recorder.snapshot()
         let yesterdayTotal = await MainActor.run { service.yesterdayTotalTokens }
         let selectedStart = await MainActor.run { service.startDate }
+        XCTAssertEqual(calls.count, 1)
         XCTAssertNil(yesterdayTotal)
         XCTAssertEqual(selectedStart, pastDay)
     }
@@ -154,7 +152,33 @@ final class UsageServiceComparisonRefreshTests: XCTestCase {
         XCTAssertEqual(totalTokens, 100)
     }
 
-    func test_usageService_clearsPendingRefreshWhenSelectionReturnsToActiveRange() async throws {
+    func test_usageService_selectionChangeRejectsActiveLoadWithoutReplacementRefresh() async throws {
+        let gate = BlockingReaderGate()
+        let today = Calendar.current.startOfDay(for: Date())
+        let firstDay = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -3, to: today))
+        let secondDay = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -2, to: today))
+        let reader = BlockingMockReader(name: "Mock", gate: gate) { _, _ in
+            mockUsage(totalTokens: 100)
+        }
+        let service = await MainActor.run { UsageService(readers: [reader]) }
+        await MainActor.run { service.selectDay(firstDay) }
+        let initialRefresh = Task { await service.refresh() }
+        await gate.waitForFirstRequest()
+
+        await MainActor.run { service.selectDay(secondDay) }
+        await gate.release()
+        await initialRefresh.value
+
+        let totalTokens = await MainActor.run { service.usageData.totalTokens }
+        let selectedStart = await MainActor.run { service.startDate }
+        let loadingSnapshot = await MainActor.run { service.presentationSnapshot }
+        XCTAssertEqual(totalTokens, 0)
+        XCTAssertEqual(selectedStart, secondDay)
+        XCTAssertFalse(loadingSnapshot.isLoading)
+        XCTAssertFalse(loadingSnapshot.isRefreshing)
+    }
+
+    func test_usageService_lastSelectionWinsWhenRangeChangesRepeatedlyDuringLoad() async throws {
         let gate = BlockingReaderGate()
         let today = Calendar.current.startOfDay(for: Date())
         let firstDay = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -3, to: today))
@@ -163,24 +187,30 @@ final class UsageServiceComparisonRefreshTests: XCTestCase {
             mockUsage(totalTokens: startDate == firstDay ? 100 : 200)
         }
 
-        let service = await MainActor.run { UsageService(readers: [reader]) }
+        let service = await MainActor.run {
+            UsageService(readers: [reader], comparisonDebounce: .zero)
+        }
         await MainActor.run { service.selectDay(firstDay) }
         let initialRefresh = Task { await service.refresh() }
 
         await gate.waitForFirstRequest()
         await MainActor.run { service.selectDay(secondDay) }
-        await service.refresh()
+        let secondRefresh = Task { await service.refresh() }
+        await gate.waitForRequestCount(2)
         await MainActor.run { service.selectDay(firstDay) }
-        await service.refresh()
+        let finalRefresh = Task { await service.refresh() }
+        await gate.waitForRequestCount(3)
         await gate.release()
         await initialRefresh.value
+        await secondRefresh.value
+        await finalRefresh.value
         try? await Task.sleep(for: .milliseconds(20))
 
         let calls = await gate.requestCountSnapshot()
         let totalTokens = await MainActor.run { service.usageData.totalTokens }
         let selectedStart = await MainActor.run { service.startDate }
 
-        XCTAssertEqual(calls, 1)
+        XCTAssertEqual(calls, 3)
         XCTAssertEqual(totalTokens, 100)
         XCTAssertEqual(selectedStart, firstDay)
     }

@@ -1,5 +1,21 @@
 import Foundation
 
+struct PeriodTokenTotalsRequest: Equatable {
+    let endDate: Date
+    let enabledReaderNames: [String: Bool]
+    let includesEmptySourceRows: Bool
+    let scope: UsageScope
+    let modelScope: UsageModelScope
+
+    var cacheKey: PeriodTokenTotalsCacheKey {
+        PeriodTokenTotalsCacheKey(
+            endDate: endDate,
+            enabledReaderNames: enabledReaderNames,
+            scope: scope,
+            modelScope: modelScope)
+    }
+}
+
 enum TokenTotalPeriod: String, CaseIterable, Codable, Hashable, Identifiable {
     case last7Days
     case last30Days
@@ -104,5 +120,170 @@ final class PeriodTokenTotalsCache {
         for supersededKey in Self.supersededKeys where supersededKey != key {
             defaults.removeObject(forKey: supersededKey)
         }
+    }
+}
+
+@MainActor
+extension UsagePanelViewModel {
+    func refreshPeriodTokenTotals() async {
+        let totalsRequest = makePeriodTokenTotalsRequest()
+        publishCachedPeriodTokenTotals(for: totalsRequest)
+        await refreshPeriodTokenTotals(for: totalsRequest)
+    }
+
+    func refreshPeriodTokenTotalsIfNeeded() async {
+        let totalsRequest = makePeriodTokenTotalsRequest()
+        if presentationSnapshot.isLoadingPeriodTokenTotals,
+           activePeriodTokenTotalsRequest == totalsRequest {
+            return
+        }
+
+        if isFreshPeriodTokenTotals(for: totalsRequest) { return }
+
+        if let cachedEntry = publishCachedPeriodTokenTotals(for: totalsRequest),
+           isFresh(cachedEntry) {
+            return
+        }
+
+        guard periodTokenTotals.isEmpty
+            || lastPeriodTokenTotalsRequest != totalsRequest
+            || !hasFreshPeriodTokenTotals else {
+            return
+        }
+        await refreshPeriodTokenTotals(for: totalsRequest)
+    }
+
+    func invalidatePeriodTokenTotals() {
+        periodTokenTotalsGeneration &+= 1
+        activePeriodTokenTotalsRequest = nil
+        lastPeriodTokenTotalsRequest = nil
+        lastPeriodTokenTotalsFetchedAt = nil
+        updateSnapshot {
+            $0.periodTokenTotals = []
+            $0.isLoadingPeriodTokenTotals = false
+        }
+    }
+}
+
+private extension UsagePanelViewModel {
+    func refreshPeriodTokenTotals(for totalsRequest: PeriodTokenTotalsRequest) async {
+        if presentationSnapshot.isLoadingPeriodTokenTotals,
+           activePeriodTokenTotalsRequest == totalsRequest {
+            return
+        }
+
+        let generation = periodTokenTotalsGeneration
+        activePeriodTokenTotalsRequest = totalsRequest
+        updateSnapshot { $0.isLoadingPeriodTokenTotals = true }
+        var didPublishResult = false
+        defer {
+            if !didPublishResult,
+               Task.isCancelled,
+               generation == periodTokenTotalsGeneration,
+               activePeriodTokenTotalsRequest == totalsRequest {
+                updateSnapshot { $0.isLoadingPeriodTokenTotals = false }
+                activePeriodTokenTotalsRequest = nil
+            }
+        }
+
+        let summaries = await periodTokenTotals(for: totalsRequest)
+
+        guard !Task.isCancelled else { return }
+        guard generation == periodTokenTotalsGeneration else { return }
+        guard activePeriodTokenTotalsRequest == totalsRequest else { return }
+        guard makePeriodTokenTotalsRequest() == totalsRequest else {
+            activePeriodTokenTotalsRequest = nil
+            updateSnapshot { $0.isLoadingPeriodTokenTotals = false }
+            await refreshPeriodTokenTotalsIfNeeded()
+            return
+        }
+
+        updateSnapshot {
+            $0.periodTokenTotals = summaries
+            $0.isLoadingPeriodTokenTotals = false
+        }
+        activePeriodTokenTotalsRequest = nil
+        lastPeriodTokenTotalsRequest = totalsRequest
+        lastPeriodTokenTotalsFetchedAt = Date()
+        periodTokenTotalsCache.store(
+            summaries,
+            for: totalsRequest.cacheKey,
+            fetchedAt: lastPeriodTokenTotalsFetchedAt ?? Date())
+        didPublishResult = true
+    }
+
+    @discardableResult
+    func publishCachedPeriodTokenTotals(
+        for request: PeriodTokenTotalsRequest) -> PeriodTokenTotalsCacheEntry? {
+        guard let cachedEntry = periodTokenTotalsCache.entry(for: request.cacheKey),
+              !cachedEntry.summaries.isEmpty else {
+            return nil
+        }
+
+        updateSnapshot { snapshot in
+            snapshot.periodTokenTotals = cachedEntry.summaries
+            snapshot.isLoadingPeriodTokenTotals = false
+        }
+        activePeriodTokenTotalsRequest = nil
+        lastPeriodTokenTotalsRequest = request
+        lastPeriodTokenTotalsFetchedAt = cachedEntry.fetchedAt
+        return cachedEntry
+    }
+
+    func isFreshPeriodTokenTotals(for request: PeriodTokenTotalsRequest) -> Bool {
+        guard lastPeriodTokenTotalsRequest == request,
+              hasFreshPeriodTokenTotals else {
+            return false
+        }
+        return true
+    }
+
+    var hasFreshPeriodTokenTotals: Bool {
+        guard let lastPeriodTokenTotalsFetchedAt else { return false }
+        return Date().timeIntervalSince(lastPeriodTokenTotalsFetchedAt) < Self.periodTokenTotalsCacheMaxAge
+    }
+
+    func isFresh(_ entry: PeriodTokenTotalsCacheEntry) -> Bool {
+        Date().timeIntervalSince(entry.fetchedAt) < Self.periodTokenTotalsCacheMaxAge
+    }
+
+    func makePeriodTokenTotalsRequest() -> PeriodTokenTotalsRequest {
+        let today = calendar.startOfDay(for: Date())
+        let endDate = calendar.date(byAdding: .day, value: 1, to: today) ?? today
+        return PeriodTokenTotalsRequest(
+            endDate: endDate,
+            enabledReaderNames: settings.normalizedReaderSettings(for: readerNames),
+            includesEmptySourceRows: settings.showsZeroSourceRows,
+            scope: selectedUsageScope,
+            modelScope: selectedModelScope)
+    }
+
+    func periodTokenTotals(for request: PeriodTokenTotalsRequest) async -> [TokenTotalSummary] {
+        var summaries: [TokenTotalSummary] = []
+
+        for period in TokenTotalPeriod.allCases {
+            guard !Task.isCancelled else { return summaries }
+
+            let interval = period.dateInterval(endingAt: request.endDate, calendar: calendar)
+            let usageRequest = UsageAggregationRequest(
+                start: interval.start,
+                end: interval.end,
+                enabledReaderNames: request.enabledReaderNames,
+                includesEmptySourceRows: request.includesEmptySourceRows)
+            let totalTokens = await aggregator.aggregateTotalTokens(
+                for: usageRequest,
+                scope: request.scope,
+                modelScope: request.modelScope)
+
+            guard !Task.isCancelled else { return summaries }
+            summaries.append(
+                TokenTotalSummary(
+                    period: period,
+                    startDate: interval.start,
+                    endDate: interval.end,
+                    totalTokens: totalTokens))
+        }
+
+        return summaries
     }
 }

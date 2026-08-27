@@ -1,27 +1,12 @@
 import Foundation
 import TokiUsageCore
 
-private struct PeriodTokenTotalsRequest: Equatable {
-    let endDate: Date
-    let enabledReaderNames: [String: Bool]
-    let includesEmptySourceRows: Bool
-    let scope: UsageScope
-    let modelScope: UsageModelScope
-
-    var cacheKey: PeriodTokenTotalsCacheKey {
-        PeriodTokenTotalsCacheKey(
-            endDate: endDate,
-            enabledReaderNames: enabledReaderNames,
-            scope: scope,
-            modelScope: modelScope)
-    }
-}
-
 struct UsageServiceSnapshot: Equatable {
     var combinedUsageData: UsageData = .empty
     var combinedModelReports: [String: UsageModelReport] = [:]
     var originReports: [UsageOriginReport] = []
     var isLoading = false
+    var isRefreshing = false
     var lastFetchedAt: Date?
     var yesterdayTotalTokens: Int?
     var readerStatuses: [ReaderStatus] = []
@@ -31,12 +16,16 @@ struct UsageServiceSnapshot: Equatable {
 
 @MainActor
 final class UsagePanelViewModel: ObservableObject {
-    private static let periodTokenTotalsCacheMaxAge: TimeInterval = 600
+    static let periodTokenTotalsCacheMaxAge: TimeInterval = 600
 
     @Published var startDate: Date
     @Published var endDate: Date
     @Published var isRangeMode = false {
         didSet {
+            guard oldValue != isRangeMode else { return }
+            cancelActiveUsageRefresh()
+            resetYesterdayComparison()
+            clearPresentedUsage()
             if isRangeMode {
                 followsCurrentDaySelection = false
             }
@@ -50,44 +39,60 @@ final class UsagePanelViewModel: ObservableObject {
 
     let settings: UsagePanelSettings
 
-    private let aggregator: UsageAggregator
-    private let periodTokenTotalsCache: PeriodTokenTotalsCache
-    private var needsRefreshAfterCurrentLoad = false
-    private var needsRemoteSyncRefreshAfterCurrentLoad = false
-    private var needsTotalsRefreshAfterCurrentLoad = false
+    let aggregator: UsageAggregator
+    let periodTokenTotalsCache: PeriodTokenTotalsCache
+    private let usageWindowResultCache: UsageWindowResultCache
+    private let comparisonDebounce: Duration
     private var followsCurrentDaySelection = true
     private var calendarDayObserver: NSObjectProtocol?
     private var yesterdayComparisonTask: Task<Void, Never>?
-    private var activeRefreshRequest: UsageAggregationRequest?
-    private var activePeriodTokenTotalsRequest: PeriodTokenTotalsRequest?
-    private var periodTokenTotalsGeneration: UInt64 = 0
-    private var lastPeriodTokenTotalsRequest: PeriodTokenTotalsRequest?
-    private var lastPeriodTokenTotalsFetchedAt: Date?
+    private var activeUsageTask: Task<UsageAggregationResult, Never>?
+    private var activeRefreshIdentity: UsageRefreshIdentity?
+    private var usageRefreshGeneration: UInt64 = 0
+    private var presentedUsageRequest: UsageAggregationRequest?
+    private var presentedUsageWindow: CurrentUsageWindow?
+    var activePeriodTokenTotalsRequest: PeriodTokenTotalsRequest?
+    var periodTokenTotalsGeneration: UInt64 = 0
+    var lastPeriodTokenTotalsRequest: PeriodTokenTotalsRequest?
+    var lastPeriodTokenTotalsFetchedAt: Date?
+    private let now: () -> Date
 
-    private var calendar: Calendar {
+    var calendar: Calendar {
         .autoupdatingCurrent
     }
 
     convenience init(
         readers: [any TokenReader] = UsageAggregator.defaultReaders,
         settings: UsagePanelSettings? = nil,
-        periodTokenTotalsCache: PeriodTokenTotalsCache = PeriodTokenTotalsCache()) {
+        periodTokenTotalsCache: PeriodTokenTotalsCache = PeriodTokenTotalsCache(),
+        usageWindowResultCache: UsageWindowResultCache = UsageWindowResultCache(),
+        comparisonDebounce: Duration = .milliseconds(300),
+        now: @escaping () -> Date = { Date() }) {
         self.init(
             aggregator: UsageAggregator(readers: readers),
             settings: settings,
-            periodTokenTotalsCache: periodTokenTotalsCache)
+            periodTokenTotalsCache: periodTokenTotalsCache,
+            usageWindowResultCache: usageWindowResultCache,
+            comparisonDebounce: comparisonDebounce,
+            now: now)
     }
 
     init(
         aggregator: UsageAggregator,
         settings: UsagePanelSettings? = nil,
-        periodTokenTotalsCache: PeriodTokenTotalsCache = PeriodTokenTotalsCache()) {
+        periodTokenTotalsCache: PeriodTokenTotalsCache = PeriodTokenTotalsCache(),
+        usageWindowResultCache: UsageWindowResultCache = UsageWindowResultCache(),
+        comparisonDebounce: Duration = .milliseconds(300),
+        now: @escaping () -> Date = { Date() }) {
         self.aggregator = aggregator
         self.settings = settings ?? UsagePanelSettings(readerNames: aggregator.readerNames)
         self.periodTokenTotalsCache = periodTokenTotalsCache
+        self.usageWindowResultCache = usageWindowResultCache
+        self.comparisonDebounce = comparisonDebounce
+        self.now = now
 
         let calendar = Calendar.autoupdatingCurrent
-        let today = calendar.startOfDay(for: Date())
+        let today = calendar.startOfDay(for: now())
         startDate = today
         endDate = calendar.date(byAdding: .day, value: 1, to: today)!
 
@@ -103,20 +108,25 @@ final class UsagePanelViewModel: ObservableObject {
 
     deinit {
         yesterdayComparisonTask?.cancel()
+        activeUsageTask?.cancel()
         if let calendarDayObserver {
             NotificationCenter.default.removeObserver(calendarDayObserver)
         }
     }
 
     func selectDay(_ date: Date) {
+        cancelActiveUsageRefresh()
         resetYesterdayComparison()
+        clearPresentedUsage()
         startDate = calendar.startOfDay(for: date)
         endDate = calendar.date(byAdding: .day, value: 1, to: startDate)!
         followsCurrentDaySelection = calendar.isDateInToday(startDate)
     }
 
     func selectRangeStart(_ date: Date) {
+        cancelActiveUsageRefresh()
         resetYesterdayComparison()
+        clearPresentedUsage()
         startDate = calendar.startOfDay(for: date)
         if startDate >= endDate {
             endDate = calendar.date(byAdding: .day, value: 1, to: startDate)!
@@ -125,7 +135,9 @@ final class UsagePanelViewModel: ObservableObject {
     }
 
     func selectRangeEnd(_ date: Date) {
+        cancelActiveUsageRefresh()
         resetYesterdayComparison()
+        clearPresentedUsage()
         let selectedEnd = calendar.startOfDay(for: date)
         endDate = calendar.date(byAdding: .day, value: 1, to: selectedEnd)!
         if startDate >= endDate {
@@ -134,8 +146,96 @@ final class UsagePanelViewModel: ObservableObject {
         followsCurrentDaySelection = false
     }
 
+    func refresh(usesWindowResultCache: Bool = false) async {
+        let refreshNow = now()
+        syncSelectionWithTodayIfNeeded(now: refreshNow)
+        let request = makeUsageRequest(
+            start: startDate,
+            end: endDate,
+            now: refreshNow)
+        let refreshIdentity = makeUsageRefreshIdentity()
+        var previousTotalTokens = presentedUsageRequest == request && canCachePreviousComparison
+            ? snapshot.yesterdayTotalTokens
+            : nil
+
+        if let activeUsageTask {
+            guard activeRefreshIdentity != refreshIdentity || activeUsageTask.isCancelled else { return }
+            cancelActiveUsageRefresh()
+        }
+
+        cancelYesterdayComparison()
+        let cacheKey = makeUsageWindowResultCacheKey()
+        if usesWindowResultCache,
+           let cacheKey,
+           let didFallBackToAllDevices = publishCachedUsage(
+               cacheKey: cacheKey,
+               now: refreshNow) {
+            refreshPeriodTokenTotalsAfterScopeFallbackIfNeeded(didFallBackToAllDevices)
+        }
+
+        usageRefreshGeneration &+= 1
+        let generation = usageRefreshGeneration
+        activeRefreshIdentity = refreshIdentity
+        updateSnapshot {
+            $0.isLoading = presentedUsageRequest == nil
+            $0.isRefreshing = presentedUsageRequest != nil
+        }
+        let usageTask = Task { await aggregator.aggregateUsage(for: request) }
+        activeUsageTask = usageTask
+        let result = await withTaskCancellationHandler {
+            await usageTask.value
+        } onCancel: {
+            usageTask.cancel()
+        }
+
+        guard !Task.isCancelled,
+              !usageTask.isCancelled,
+              generation == usageRefreshGeneration,
+              activeRefreshIdentity == refreshIdentity,
+              makeUsageRefreshIdentity() == refreshIdentity else {
+            finishCanceledUsageRefresh(generation: generation)
+            return
+        }
+
+        activeUsageTask = nil
+        activeRefreshIdentity = nil
+        let fetchedAt = now()
+        previousTotalTokens = canCachePreviousComparison ? previousTotalTokens : nil
+        let didFallBackToAllDevices = publishUsageResult(
+            result,
+            request: request,
+            fetchedAt: fetchedAt,
+            previousTotalTokens: previousTotalTokens,
+            currentUsageWindow: selectedCurrentUsageWindow)
+        if let cacheKey {
+            usageWindowResultCache.store(
+                UsageWindowResultCacheEntry(
+                    request: request,
+                    result: result,
+                    fetchedAt: fetchedAt,
+                    previousTotalTokens: previousTotalTokens),
+                for: cacheKey,
+                now: fetchedAt)
+        }
+
+        if shouldCompareAgainstYesterday(start: request.start, end: request.end) {
+            startYesterdayComparison(
+                for: request,
+                scope: selectedUsageScope,
+                modelScope: selectedModelScope,
+                cacheKey: canCachePreviousComparison ? cacheKey : nil)
+        }
+        refreshPeriodTokenTotalsAfterScopeFallbackIfNeeded(didFallBackToAllDevices)
+    }
+}
+
+typealias UsageService = UsagePanelViewModel
+
+extension UsagePanelViewModel {
     func selectRange(from: Date, to: Date) {
+        cancelActiveUsageRefresh()
         resetYesterdayComparison()
+        clearPresentedUsage()
         let normalizedFrom = calendar.startOfDay(for: from)
         let normalizedTo = calendar.startOfDay(for: to)
         let lowerBound = min(normalizedFrom, normalizedTo)
@@ -152,102 +252,24 @@ final class UsagePanelViewModel: ObservableObject {
         let today = calendar.startOfDay(for: now)
         guard startDate != today || !isSingleDay else { return false }
 
+        cancelActiveUsageRefresh()
         resetYesterdayComparison()
+        clearPresentedUsage()
         startDate = today
         endDate = calendar.date(byAdding: .day, value: 1, to: today)!
         followsCurrentDaySelection = true
         return true
     }
 
-    func refresh() async {
-        syncSelectionWithTodayIfNeeded()
-        let request = makeUsageRequest(start: startDate, end: endDate)
-
-        if snapshot.isLoading {
-            guard activeRefreshRequest != request else {
-                needsRefreshAfterCurrentLoad = false
-                return
-            }
-            needsRefreshAfterCurrentLoad = true
-            return
-        }
-
-        cancelYesterdayComparison()
-        activeRefreshRequest = request
-        updateSnapshot { $0.isLoading = true }
-        var didPublishResult = false
-        defer {
-            activeRefreshRequest = nil
-            if !didPublishResult {
-                updateSnapshot { $0.isLoading = false }
-            }
-
-            if needsRefreshAfterCurrentLoad || needsRemoteSyncRefreshAfterCurrentLoad {
-                let refreshesPeriodTokenTotals = needsTotalsRefreshAfterCurrentLoad
-                needsRefreshAfterCurrentLoad = false
-                needsRemoteSyncRefreshAfterCurrentLoad = false
-                needsTotalsRefreshAfterCurrentLoad = false
-                Task { [weak self] in
-                    guard let self else { return }
-                    await refresh()
-                    if refreshesPeriodTokenTotals {
-                        await refreshPeriodTokenTotalsIfNeeded()
-                    }
-                }
-            }
-        }
-
-        let compareAgainstYesterday = shouldCompareAgainstYesterday(
-            start: request.start,
-            end: request.end)
-        let result = await aggregator.aggregateUsage(for: request)
-
-        guard request == makeUsageRequest(start: startDate, end: endDate) else {
-            needsRefreshAfterCurrentLoad = true
-            return
-        }
-
-        let didFallBackToAllDevices = resolveSelectedUsageScope(
-            availableReports: result.originReports)
-        updateSnapshot {
-            $0.combinedUsageData = result.usageData
-            $0.combinedModelReports = result.modelReports
-            $0.originReports = result.originReports
-            $0.readerStatuses = result.readerStatuses
-            $0.lastFetchedAt = Date()
-            $0.isLoading = false
-        }
-        didPublishResult = true
-
-        if compareAgainstYesterday {
-            startYesterdayComparison(
-                for: request,
-                scope: selectedUsageScope,
-                modelScope: selectedModelScope)
-        }
-        if didFallBackToAllDevices {
-            Task { [weak self] in
-                await self?.refreshPeriodTokenTotalsIfNeeded()
-            }
-        }
-    }
-
     func refreshAfterRemoteSyncChange() async {
+        cancelActiveUsageRefresh()
+        usageWindowResultCache.clear()
         periodTokenTotalsCache.clear()
         invalidatePeriodTokenTotals()
-        if snapshot.isLoading {
-            needsRemoteSyncRefreshAfterCurrentLoad = true
-            needsTotalsRefreshAfterCurrentLoad = true
-            return
-        }
         await refresh()
         await refreshPeriodTokenTotalsIfNeeded()
     }
-}
 
-typealias UsageService = UsagePanelViewModel
-
-extension UsagePanelViewModel {
     var readerNames: [String] {
         aggregator.readerNames
     }
@@ -260,8 +282,25 @@ extension UsagePanelViewModel {
         calendar.dateComponents([.day], from: startDate, to: endDate).day == 1
     }
 
+    var currentUsageWindowForPresentation: CurrentUsageWindow? {
+        guard isShowingCurrentUsageWindow else { return nil }
+        return presentedUsageRequest == nil
+            ? selectedCurrentUsageWindow
+            : presentedUsageWindow
+    }
+
     var shouldCompareAgainstYesterday: Bool {
-        isSingleDay && calendar.isDateInToday(startDate)
+        isShowingCurrentUsageWindow
+    }
+
+    func handleCurrentUsageWindowChange() {
+        guard isShowingCurrentUsageWindow else { return }
+        cancelActiveUsageRefresh()
+        resetYesterdayComparison()
+        updateSnapshot {
+            $0.isLoading = presentedUsageRequest == nil
+            $0.isRefreshing = presentedUsageRequest != nil
+        }
     }
 
     func selectUsageScope(_ scope: UsageScope) {
@@ -275,7 +314,10 @@ extension UsagePanelViewModel {
         selectedUsageScope = scope
         invalidatePeriodTokenTotals()
 
-        let request = makeUsageRequest(start: startDate, end: endDate)
+        let request = presentedUsageRequest ?? makeUsageRequest(
+            start: startDate,
+            end: endDate,
+            now: now())
         if shouldCompareAgainstYesterday(start: request.start, end: request.end) {
             startYesterdayComparison(
                 for: request,
@@ -295,7 +337,10 @@ extension UsagePanelViewModel {
         selectedModelScope = scope
         invalidatePeriodTokenTotals()
 
-        let request = makeUsageRequest(start: startDate, end: endDate)
+        let request = presentedUsageRequest ?? makeUsageRequest(
+            start: startDate,
+            end: endDate,
+            now: now())
         if shouldCompareAgainstYesterday(start: request.start, end: request.end) {
             startYesterdayComparison(
                 for: request,
@@ -308,122 +353,131 @@ extension UsagePanelViewModel {
         }
     }
 
-    func refreshPeriodTokenTotals() async {
-        let totalsRequest = makePeriodTokenTotalsRequest()
-        publishCachedPeriodTokenTotals(for: totalsRequest)
-        await refreshPeriodTokenTotals(for: totalsRequest)
-    }
-
-    func refreshPeriodTokenTotalsIfNeeded() async {
-        let totalsRequest = makePeriodTokenTotalsRequest()
-        if snapshot.isLoadingPeriodTokenTotals,
-           activePeriodTokenTotalsRequest == totalsRequest {
-            return
-        }
-
-        if isFreshPeriodTokenTotals(for: totalsRequest) { return }
-
-        if let cachedEntry = publishCachedPeriodTokenTotals(for: totalsRequest),
-           isFresh(cachedEntry) {
-            return
-        }
-
-        guard periodTokenTotals.isEmpty
-            || lastPeriodTokenTotalsRequest != totalsRequest
-            || !hasFreshPeriodTokenTotals else {
-            return
-        }
-        await refreshPeriodTokenTotals(for: totalsRequest)
-    }
-}
-
-private extension UsagePanelViewModel {
-    private func updateSnapshot(_ update: (inout UsageServiceSnapshot) -> Void) {
+    func updateSnapshot(_ update: (inout UsageServiceSnapshot) -> Void) {
         var nextSnapshot = snapshot
         update(&nextSnapshot)
         guard nextSnapshot != snapshot else { return }
         snapshot = nextSnapshot
     }
+}
 
-    private func refreshPeriodTokenTotals(for totalsRequest: PeriodTokenTotalsRequest) async {
-        if snapshot.isLoadingPeriodTokenTotals,
-           activePeriodTokenTotalsRequest == totalsRequest {
-            return
-        }
-
-        let generation = periodTokenTotalsGeneration
-        activePeriodTokenTotalsRequest = totalsRequest
-        updateSnapshot { $0.isLoadingPeriodTokenTotals = true }
-        var didPublishResult = false
-        defer {
-            if !didPublishResult,
-               Task.isCancelled,
-               generation == periodTokenTotalsGeneration,
-               activePeriodTokenTotalsRequest == totalsRequest {
-                updateSnapshot { $0.isLoadingPeriodTokenTotals = false }
-                activePeriodTokenTotalsRequest = nil
-            }
-        }
-
-        let summaries = await periodTokenTotals(for: totalsRequest)
-
-        guard !Task.isCancelled else { return }
-        guard generation == periodTokenTotalsGeneration else { return }
-        guard activePeriodTokenTotalsRequest == totalsRequest else { return }
-        guard makePeriodTokenTotalsRequest() == totalsRequest else {
-            activePeriodTokenTotalsRequest = nil
-            updateSnapshot { $0.isLoadingPeriodTokenTotals = false }
-            await refreshPeriodTokenTotalsIfNeeded()
-            return
-        }
-
+private extension UsagePanelViewModel {
+    func clearPresentedUsage() {
+        presentedUsageRequest = nil
+        presentedUsageWindow = nil
         updateSnapshot {
-            $0.periodTokenTotals = summaries
-            $0.isLoadingPeriodTokenTotals = false
+            $0.combinedUsageData = .empty
+            $0.combinedModelReports = [:]
+            $0.originReports = []
+            $0.readerStatuses = []
+            $0.lastFetchedAt = nil
+            $0.yesterdayTotalTokens = nil
+            $0.isLoading = false
+            $0.isRefreshing = false
         }
-        activePeriodTokenTotalsRequest = nil
-        lastPeriodTokenTotalsRequest = totalsRequest
-        lastPeriodTokenTotalsFetchedAt = Date()
-        periodTokenTotalsCache.store(
-            summaries,
-            for: totalsRequest.cacheKey,
-            fetchedAt: lastPeriodTokenTotalsFetchedAt ?? Date())
-        didPublishResult = true
+    }
+
+    func publishCachedUsage(
+        cacheKey: UsageWindowResultCacheKey,
+        now: Date) -> Bool? {
+        guard let cachedEntry = usageWindowResultCache.entry(for: cacheKey, now: now) else { return nil }
+        if case let .origin(originID) = selectedUsageScope,
+           !cachedEntry.result.originReports.contains(where: { $0.id == originID }) {
+            return nil
+        }
+        let previousTotalTokens = canCachePreviousComparison ? cachedEntry.previousTotalTokens : nil
+        let didFallBackToAllDevices = publishUsageResult(
+            cachedEntry.result,
+            request: cachedEntry.request,
+            fetchedAt: cachedEntry.fetchedAt,
+            previousTotalTokens: previousTotalTokens,
+            currentUsageWindow: selectedCurrentUsageWindow,
+            resolvesMissingScope: false)
+        updateSnapshot {
+            $0.isLoading = false
+            $0.isRefreshing = true
+        }
+        return didFallBackToAllDevices
+    }
+
+    var isShowingCurrentUsageWindow: Bool {
+        !isRangeMode && followsCurrentDaySelection && isSingleDay
+    }
+
+    var selectedCurrentUsageWindow: CurrentUsageWindow? {
+        guard isShowingCurrentUsageWindow else { return nil }
+        return settings.currentUsageWindow
+    }
+
+    var canCachePreviousComparison: Bool {
+        selectedUsageScope == .all && selectedModelScope == .all
+    }
+
+    private func cancelActiveUsageRefresh() {
+        usageRefreshGeneration &+= 1
+        activeUsageTask?.cancel()
+        activeUsageTask = nil
+        activeRefreshIdentity = nil
+        updateSnapshot {
+            $0.isLoading = false
+            $0.isRefreshing = false
+        }
+    }
+
+    private func finishCanceledUsageRefresh(generation: UInt64) {
+        guard generation == usageRefreshGeneration else { return }
+        activeUsageTask = nil
+        activeRefreshIdentity = nil
+        updateSnapshot {
+            $0.isLoading = false
+            $0.isRefreshing = false
+        }
+    }
+
+    private func makeUsageWindowResultCacheKey() -> UsageWindowResultCacheKey? {
+        guard let window = selectedCurrentUsageWindow else { return nil }
+        let enabledReaderNames = settings.normalizedReaderSettings(for: readerNames)
+            .filter(\.value)
+            .map(\.key)
+            .sorted()
+        return UsageWindowResultCacheKey(
+            window: window,
+            calendarDayStart: window == .calendarDay ? startDate : nil,
+            enabledReaderNames: enabledReaderNames,
+            includesEmptySourceRows: settings.showsZeroSourceRows)
     }
 
     @discardableResult
-    private func publishCachedPeriodTokenTotals(
-        for request: PeriodTokenTotalsRequest) -> PeriodTokenTotalsCacheEntry? {
-        guard let cachedEntry = periodTokenTotalsCache.entry(for: request.cacheKey),
-              !cachedEntry.summaries.isEmpty else {
-            return nil
+    private func publishUsageResult(
+        _ result: UsageAggregationResult,
+        request: UsageAggregationRequest,
+        fetchedAt: Date,
+        previousTotalTokens: Int?,
+        currentUsageWindow: CurrentUsageWindow?,
+        resolvesMissingScope: Bool = true) -> Bool {
+        let didFallBackToAllDevices = resolvesMissingScope
+            ? resolveSelectedUsageScope(availableReports: result.originReports)
+            : false
+        updateSnapshot {
+            $0.combinedUsageData = result.usageData
+            $0.combinedModelReports = result.modelReports
+            $0.originReports = result.originReports
+            $0.readerStatuses = result.readerStatuses
+            $0.lastFetchedAt = fetchedAt
+            $0.yesterdayTotalTokens = previousTotalTokens
+            $0.isLoading = false
+            $0.isRefreshing = false
         }
-
-        updateSnapshot { snapshot in
-            snapshot.periodTokenTotals = cachedEntry.summaries
-            snapshot.isLoadingPeriodTokenTotals = false
-        }
-        activePeriodTokenTotalsRequest = nil
-        lastPeriodTokenTotalsRequest = request
-        lastPeriodTokenTotalsFetchedAt = cachedEntry.fetchedAt
-        return cachedEntry
+        presentedUsageRequest = request
+        presentedUsageWindow = currentUsageWindow
+        return didFallBackToAllDevices
     }
 
-    private func isFreshPeriodTokenTotals(for request: PeriodTokenTotalsRequest) -> Bool {
-        guard lastPeriodTokenTotalsRequest == request,
-              hasFreshPeriodTokenTotals else {
-            return false
+    private func refreshPeriodTokenTotalsAfterScopeFallbackIfNeeded(_ isNeeded: Bool) {
+        guard isNeeded else { return }
+        Task { [weak self] in
+            await self?.refreshPeriodTokenTotalsIfNeeded()
         }
-        return true
-    }
-
-    private var hasFreshPeriodTokenTotals: Bool {
-        guard let lastPeriodTokenTotalsFetchedAt else { return false }
-        return Date().timeIntervalSince(lastPeriodTokenTotalsFetchedAt) < Self.periodTokenTotalsCacheMaxAge
-    }
-
-    private func isFresh(_ entry: PeriodTokenTotalsCacheEntry) -> Bool {
-        Date().timeIntervalSince(entry.fetchedAt) < Self.periodTokenTotalsCacheMaxAge
     }
 
     private func handleCalendarDayChange(now: Date = Date()) {
@@ -434,68 +488,41 @@ private extension UsagePanelViewModel {
         }
     }
 
-    private func makeUsageRequest(start: Date, end: Date) -> UsageAggregationRequest {
-        UsageAggregationRequest(
-            start: start,
-            end: end,
+    private func makeUsageRefreshIdentity() -> UsageRefreshIdentity {
+        UsageRefreshIdentity(
+            selectionStart: startDate,
+            selectionEnd: endDate,
+            isRangeMode: isRangeMode,
+            currentUsageWindow: selectedCurrentUsageWindow,
             enabledReaderNames: settings.normalizedReaderSettings(for: readerNames),
             includesEmptySourceRows: settings.showsZeroSourceRows)
     }
 
-    private func makePeriodTokenTotalsRequest() -> PeriodTokenTotalsRequest {
-        let today = calendar.startOfDay(for: Date())
-        let endDate = calendar.date(byAdding: .day, value: 1, to: today) ?? today
-        return PeriodTokenTotalsRequest(
-            endDate: endDate,
+    private func makeUsageRequest(
+        start: Date,
+        end: Date,
+        now: Date) -> UsageAggregationRequest {
+        let interval = selectedCurrentUsageWindow?.dateInterval(
+            at: now,
+            calendar: calendar) ?? DateInterval(start: start, end: end)
+        return UsageAggregationRequest(
+            start: interval.start,
+            end: interval.end,
             enabledReaderNames: settings.normalizedReaderSettings(for: readerNames),
             includesEmptySourceRows: settings.showsZeroSourceRows,
-            scope: selectedUsageScope,
-            modelScope: selectedModelScope)
-    }
-
-    private func periodTokenTotals(for request: PeriodTokenTotalsRequest) async -> [TokenTotalSummary] {
-        var summaries: [TokenTotalSummary] = []
-
-        for period in TokenTotalPeriod.allCases {
-            guard !Task.isCancelled else { return summaries }
-
-            let interval = period.dateInterval(endingAt: request.endDate, calendar: calendar)
-            let usageRequest = UsageAggregationRequest(
-                start: interval.start,
-                end: interval.end,
-                enabledReaderNames: request.enabledReaderNames,
-                includesEmptySourceRows: request.includesEmptySourceRows)
-            let totalTokens = await aggregator.aggregateTotalTokens(
-                for: usageRequest,
-                scope: request.scope,
-                modelScope: request.modelScope)
-
-            guard !Task.isCancelled else { return summaries }
-            summaries.append(
-                TokenTotalSummary(
-                    period: period,
-                    startDate: interval.start,
-                    endDate: interval.end,
-                    totalTokens: totalTokens))
-        }
-
-        return summaries
+            liveContextWindow: selectedCurrentUsageWindow.map {
+                switch $0 {
+                case .calendarDay:
+                    .calendarDay
+                case .rolling24Hours:
+                    .rolling24Hours
+                }
+            })
     }
 
     private func cancelYesterdayComparison() {
         yesterdayComparisonTask?.cancel()
         yesterdayComparisonTask = nil
-    }
-
-    private func invalidatePeriodTokenTotals() {
-        periodTokenTotalsGeneration &+= 1
-        activePeriodTokenTotalsRequest = nil
-        lastPeriodTokenTotalsRequest = nil
-        lastPeriodTokenTotalsFetchedAt = nil
-        updateSnapshot {
-            $0.periodTokenTotals = []
-            $0.isLoadingPeriodTokenTotals = false
-        }
     }
 
     @discardableResult
@@ -519,23 +546,30 @@ private extension UsagePanelViewModel {
         }
     }
 
-    private func shouldCompareAgainstYesterday(start: Date, end: Date) -> Bool {
-        calendar.dateComponents([.day], from: start, to: end).day == 1
-            && calendar.isDateInToday(start)
+    private func shouldCompareAgainstYesterday(start _: Date, end _: Date) -> Bool {
+        isShowingCurrentUsageWindow
     }
 
     private func startYesterdayComparison(
         for request: UsageAggregationRequest,
         scope: UsageScope,
-        modelScope: UsageModelScope) {
+        modelScope: UsageModelScope,
+        cacheKey: UsageWindowResultCacheKey? = nil) {
+        guard let window = selectedCurrentUsageWindow else { return }
         yesterdayComparisonTask = Task { [weak self] in
             guard let self else { return }
-            let prevStart = calendar.date(byAdding: .day, value: -1, to: request.start)!
+            if comparisonDebounce > .zero {
+                try? await Task.sleep(for: comparisonDebounce)
+            }
+            guard !Task.isCancelled else { return }
+            let previousInterval = window.previousDateInterval(
+                before: request.dateInterval,
+                calendar: calendar)
             guard !Task.isCancelled else { return }
 
             let previousRequest = UsageAggregationRequest(
-                start: prevStart,
-                end: request.start,
+                start: previousInterval.start,
+                end: previousInterval.end,
                 enabledReaderNames: request.enabledReaderNames,
                 includesEmptySourceRows: request.includesEmptySourceRows)
             let previousTotalTokens = await aggregator.aggregateTotalTokens(
@@ -544,7 +578,8 @@ private extension UsagePanelViewModel {
                 modelScope: modelScope)
 
             guard !Task.isCancelled else { return }
-            guard request == makeUsageRequest(start: startDate, end: endDate),
+            guard request == presentedUsageRequest,
+                  selectedCurrentUsageWindow == window,
                   selectedUsageScope == scope,
                   selectedModelScope == modelScope,
                   shouldCompareAgainstYesterday(start: request.start, end: request.end) else {
@@ -552,6 +587,12 @@ private extension UsagePanelViewModel {
             }
 
             updateSnapshot { $0.yesterdayTotalTokens = previousTotalTokens }
+            if let cacheKey {
+                usageWindowResultCache.storePreviousTotalTokens(
+                    previousTotalTokens,
+                    for: cacheKey,
+                    matching: request)
+            }
             yesterdayComparisonTask = nil
         }
     }

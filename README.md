@@ -69,8 +69,7 @@ Translocation runs it from a hidden read-only copy.
 git clone https://github.com/choi138/toki.git
 cd toki
 brew install xcodegen swiftlint swiftformat
-xcodegen generate
-open Toki.xcodeproj
+cd menubar && xcodegen generate && open ./Toki.xcodeproj
 ```
 
 Then build and run the `Toki` scheme in Xcode. Locally built apps are not
@@ -93,11 +92,11 @@ tracked tool untouched.
 
 | Overview | Projects | Models |
 | --- | --- | --- |
-| <img src="Screenshots/screenshot_overview.png" width="220" alt="Overview tab showing total tokens and seven-day, thirty-day, and all-time totals" /> | <img src="Screenshots/screenshot_projects.png" width="220" alt="Projects tab showing attribution summary and top project usage" /> | <img src="Screenshots/screenshot_models.png" width="220" alt="Models tab showing token and cost breakdown with relative token-share bars" /> |
+| <img src="menubar/Screenshots/screenshot_overview.png" width="220" alt="Overview tab showing total tokens and seven-day, thirty-day, and all-time totals" /> | <img src="menubar/Screenshots/screenshot_projects.png" width="220" alt="Projects tab showing attribution summary and top project usage" /> | <img src="menubar/Screenshots/screenshot_models.png" width="220" alt="Models tab showing token and cost breakdown with relative token-share bars" /> |
 
 | Sources | Time | Hourly | Settings |
 | --- | --- | --- | --- |
-| <img src="Screenshots/screenshot_sources.png" width="220" alt="Sources tab with CSV and JSON export controls, per-tool usage, and reader status" /> | <img src="Screenshots/screenshot_time.png" width="220" alt="Time tab comparing direct, delegated, wall-clock, and parallel work time" /> | <img src="Screenshots/screenshot_hourly.png" width="220" alt="Hourly tab with usage chart and peak-hour summary" /> | <img src="Screenshots/screenshot_settings.png" width="220" alt="Settings display controls for zero rows, menu bar cost, pricing updates, and launch at login" /> |
+| <img src="menubar/Screenshots/screenshot_sources.png" width="220" alt="Sources tab with CSV and JSON export controls, per-tool usage, and reader status" /> | <img src="menubar/Screenshots/screenshot_time.png" width="220" alt="Time tab comparing direct, delegated, wall-clock, and parallel work time" /> | <img src="menubar/Screenshots/screenshot_hourly.png" width="220" alt="Hourly tab with usage chart and peak-hour summary" /> | <img src="menubar/Screenshots/screenshot_settings.png" width="220" alt="Settings display controls for zero rows, menu bar cost, pricing updates, and launch at login" /> |
 
 ---
 
@@ -233,51 +232,52 @@ when they exist and reports context-window metrics separately when they do not.
 Remote Agent and Hub builds use SwiftPM:
 
 ```bash
-swift test
-swift test --package-path TokiHub
-swift build -c release --product toki-agent
-swift build --package-path TokiHub -c release --product toki-hub
+swift test --package-path core
+swift test --package-path hub
+swift build --package-path core -c release --product toki-agent
+swift build --package-path hub -c release --product toki-hub
 ```
 
 ## Development
 
 Toki is organized by responsibility:
 
-- `Toki/App`: menu bar lifecycle and app entry points.
-- `Toki/Domain`: app-level usage/security models, report builders, formatting,
+- `menubar/Toki/App`: menu bar lifecycle and app entry points.
+- `menubar/Toki/Domain`: app-level usage/security models, report builders, formatting,
   and export payloads.
-- `Toki/Infrastructure`: app-specific aggregation, remote sync, activity
+- `menubar/Toki/Infrastructure`: app-specific aggregation, remote sync, activity
   monitoring, and security scanning.
-- `Toki/Features`: SwiftUI panels, settings, view models, exports, and audit UI.
-- `TokiTests`: focused unit tests for readers, aggregation, formatting,
+- `menubar/Toki/Features`: SwiftUI panels, settings, view models, exports, and audit UI.
+- `menubar/TokiTests`: focused unit tests for readers, aggregation, formatting,
   settings, security audit behavior, and view-model logic.
-- `Sources/TokiUsageCore`: reusable token usage values, active-time estimation,
+- `core/Sources/TokiUsageCore`: reusable token usage values, active-time estimation,
   date parsing, and the base reader protocol.
-- `Sources/TokiUsageReaders`: reusable local readers, pricing, parse caches, and
+- `core/Sources/TokiUsageReaders`: reusable local readers, pricing, parse caches, and
   the Hermes usage ledger.
-- `Sources/TokiSyncProtocol`: versioned encrypted remote-sync protocol.
-- `Sources/TokiDurableStorage`: durable private-file primitives shared by sync
+- `core/Sources/TokiSyncProtocol`: versioned encrypted remote-sync protocol.
+- `core/Sources/TokiDurableStorage`: durable private-file primitives shared by sync
   components.
-- `Sources/TokiAgentCore` and `Sources/TokiAgent`: optional Linux-compatible
+- `core/Sources/TokiAgentCore` and `core/Sources/TokiAgent`: optional Linux-compatible
   outbound collector.
-- `TokiHub/Sources/TokiHubCore` and `TokiHub/Sources/TokiHub`:
+- `hub/Sources/TokiHubCore` and `hub/Sources/TokiHub`:
   dependency-isolated optional Linux-compatible Hub.
 
-The root Swift package exposes `TokiUsageCore`, `TokiUsageReaders`,
+The `core` Swift package exposes `TokiUsageCore`, `TokiUsageReaders`,
 `TokiSyncProtocol`, `TokiDurableStorage`, and `toki-agent`, with no Vapor
 dependency. Importing a library product does not start collection or networking;
 callers choose which readers or sync components to run. Server dependencies are
-resolved only when the nested `TokiHub` package is built, so library consumers do
-not pull in or start Hub code. The nested Hub is intended for repository clones,
-source/container builds, or distributed Hub binaries; a SwiftPM dependency on
-this repository's root URL cannot select the nested `TokiHub/Package.swift`
-product directly.
+resolved only when the `hub` package is built, so core library users do not pull
+in or start Hub code. The nested packages are intended for repository clones,
+source/container builds, or distributed binaries; a SwiftPM dependency on this
+repository's root URL cannot select `core/Package.swift` or `hub/Package.swift`
+directly.
 
 Required checks before opening a PR:
 
 ```bash
 swiftformat . --lint --disable wrapIfStatementBodies
 swiftlint lint --strict --quiet
+cd menubar
 xcodegen generate
 xcodebuild test \
   -project Toki.xcodeproj \
@@ -303,21 +303,21 @@ Good places to start are labelled
 
 This is the most useful contribution, and it is smaller than it looks — a
 minimal reader is around 130 lines. Readers live in the `TokiUsageReaders`
-SwiftPM package, so `swift build` works without Xcode.
+SwiftPM package, so `swift build --package-path core` works without Xcode.
 
 1. Find where your tool stores usage locally (JSONL logs or a SQLite database).
 2. Copy the closest existing reader as a starting point:
-   - JSONL logs → `Sources/TokiUsageReaders/OpenClawReader.swift` (131 lines,
+   - JSONL logs → `core/Sources/TokiUsageReaders/OpenClawReader.swift` (131 lines,
      the simplest one)
-   - SQLite → `Sources/TokiUsageReaders/OpenCodeReader.swift`
-3. Conform to `TokenReader` (`Sources/TokiUsageCore/TokenReader.swift`). Only
+   - SQLite → `core/Sources/TokiUsageReaders/OpenCodeReader.swift`
+3. Conform to `TokenReader` (`core/Sources/TokiUsageCore/TokenReader.swift`). Only
    `name` and `readUsage(from:to:)` are required; token and output totals have
    default implementations.
-4. Register it in `Sources/TokiUsageReaders/LocalUsageReaderRegistry.swift`
+4. Register it in `core/Sources/TokiUsageReaders/LocalUsageReaderRegistry.swift`
    (see the existing `LocalUsageReaderDescriptor` list), adding a path override
    so tests can point at a fixture directory.
-5. Add a test next to the others in `TokiTests/`, modelled on
-   `TokiTests/OpenClawReaderTests.swift`.
+5. Add a test next to the others in `menubar/TokiTests/`, modelled on
+   `menubar/TokiTests/OpenClawReaderTests.swift`.
 6. Add a row to [Supported Agents](#supported-agents).
 
 **No sample logs? Open an issue instead.** A redacted snippet of your tool's
@@ -326,7 +326,7 @@ that cannot be written without access to the tool.
 
 ### Add or fix model pricing
 
-The lowest-barrier contribution: `Sources/TokiUsageReaders/ModelPricing.swift`
+The lowest-barrier contribution: `core/Sources/TokiUsageReaders/ModelPricing.swift`
 is a table of per-model rates. Adding a model is a few lines and CI validates
 it, so you can edit it straight from the GitHub web editor. Include a link to
 the provider's public pricing page in the PR.

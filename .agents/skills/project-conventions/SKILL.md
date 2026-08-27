@@ -15,9 +15,9 @@ Review these rules before editing Toki code or project configuration.
 
 ## When To Activate
 
-- Before editing `Toki/**/*.swift`
-- Before editing `TokiTests/**/*.swift`
-- Before changing `project.yml`, `Toki.xcodeproj`, `.swiftformat`, or
+- Before editing `menubar/Toki/**/*.swift`
+- Before editing `menubar/TokiTests/**/*.swift`
+- Before changing `menubar/project.yml`, `menubar/Toki.xcodeproj`, `.swiftformat`, or
   `.swiftlint.yml`
 - When working on usage readers, pricing, aggregation, security audit scanning,
   SwiftUI feature screens, app launch/menu bar behavior, or tests

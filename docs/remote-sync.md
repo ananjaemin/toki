@@ -85,16 +85,16 @@ both paths double-counts their tokens and activity.
 
 ## Build on Ubuntu
 
-Install Swift 5.9.2 or later and SQLite headers, then build the root Agent package
-and the dependency-isolated nested Hub package:
+Install Swift 5.9.2 or later and SQLite headers, then build the `core` Agent package
+and the dependency-isolated `hub` package:
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y libsqlite3-dev
-swift build -c release --product toki-agent
-swift build --package-path TokiHub -c release --product toki-hub
-sudo install -m 0755 .build/release/toki-agent /usr/local/bin/toki-agent
-sudo install -m 0755 TokiHub/.build/release/toki-hub /usr/local/bin/toki-hub
+swift build --package-path core -c release --product toki-agent
+swift build --package-path hub -c release --product toki-hub
+sudo install -m 0755 core/.build/release/toki-agent /usr/local/bin/toki-agent
+sudo install -m 0755 hub/.build/release/toki-hub /usr/local/bin/toki-hub
 ```
 
 Build on the target Linux distribution, or package the matching Swift runtime
@@ -382,7 +382,7 @@ restart loses an unconfirmed new record, create a new pairing then.
 
 ## Library integration
 
-The root Swift package exposes five products:
+The `core` Swift package exposes five products:
 
 - `TokiUsageCore`: reusable token usage values, activity-time estimation, date
   parsing, and the base local-reader protocol.
@@ -395,15 +395,15 @@ The root Swift package exposes five products:
   with no Vapor or network dependency.
 - `toki-agent`: optional outbound-only collector.
 
-`TokiHub/Package.swift` is a dependency-isolated nested package that exposes
+`hub/Package.swift` is a dependency-isolated nested package that exposes
 `toki-hub`, the optional encrypted relay/storage API. This separation keeps
-Vapor and its transitive server dependencies out of the root package's
-dependency graph. The Hub package uses a local `path: ".."` dependency and is
+Vapor and its transitive server dependencies out of the core package's
+dependency graph. The Hub package uses a local `path: "../core"` dependency and is
 therefore intended for a repository clone, container/source build, or separately
 distributed Hub binary. SwiftPM consumers cannot select this nested executable
 by adding the repository root URL as a dependency.
 
-Depending on a root library product does not start a server, collect local usage,
+Depending on a core library product does not start a server, collect local usage,
 or make network requests. Local files are read only when a caller invokes a
 reader, and existing Toki library/app users remain local-only until a Hub is
 explicitly configured.

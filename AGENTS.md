@@ -8,7 +8,7 @@ files referenced below.
 
 | Topic | Source | When |
 | --- | --- | --- |
-| Toki Source Conventions | `/project-conventions` skill or `.agents/skills/project-conventions/conventions.md` plus task-specific files under `.agents/skills/project-conventions/references/` | Before editing `Toki/**/*.swift`, `TokiTests/**/*.swift`, `project.yml`, `.swiftformat`, `.swiftlint.yml`, or app resources |
+| Toki Source Conventions | `/project-conventions` skill or `.agents/skills/project-conventions/conventions.md` plus task-specific files under `.agents/skills/project-conventions/references/` | Before editing `menubar/Toki/**/*.swift`, `menubar/TokiTests/**/*.swift`, `menubar/project.yml`, `.swiftformat`, `.swiftlint.yml`, or app resources |
 | Local Codex Review Loop | `/codex-review-loop` skill or `.agents/skills/codex-review-loop/SKILL.md` | Local diff review, approved finding fixes, and bounded re-review |
 | Git Workflow | `.agents/conventions/git-workflow.md` | Branch / commit / PR work |
 
@@ -23,11 +23,13 @@ Toki is a macOS menu bar app built with Swift, SwiftUI, XcodeGen, SwiftFormat,
 and SwiftLint.
 
 1. Inspect the existing local pattern before changing code.
-2. Keep app entry code in `Toki/App`, domain models and builders in
-   `Toki/Domain`, platform and data readers in `Toki/Infrastructure`,
-   feature UI/view-model code in `Toki/Features`, and tests in `TokiTests`.
-3. Prefer editing `project.yml` and regenerating with `xcodegen generate` for
-   project configuration changes. Avoid hand-editing `Toki.xcodeproj` unless
+2. Keep app entry code in `menubar/Toki/App`, domain models and builders in
+   `menubar/Toki/Domain`, platform and data readers in `menubar/Toki/Infrastructure`,
+   feature UI/view-model code in `menubar/Toki/Features`, and tests in
+   `menubar/TokiTests`.
+3. Prefer editing `menubar/project.yml` and regenerating with `xcodegen generate`
+   from `menubar/` for project configuration changes. Avoid hand-editing
+   `menubar/Toki.xcodeproj` unless
    the user explicitly asks for a project-file-only fix or regeneration is not
    possible.
 4. Treat local agent logs, usage databases, security audit findings, and secret
@@ -48,6 +50,7 @@ change, prefer the full set:
 ```bash
 swiftformat . --lint
 swiftlint lint --strict --quiet
+cd menubar
 xcodegen generate
 xcodebuild test \
   -project Toki.xcodeproj \

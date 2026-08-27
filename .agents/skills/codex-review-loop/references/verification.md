@@ -14,23 +14,23 @@ git diff --check
 
 ### swift-package
 
-Use for root package, protocol, reader, durable-storage, and Agent changes:
+Use for core package, protocol, reader, durable-storage, and Agent changes:
 
 ~~~bash
-swift test
+swift test --package-path core
 ~~~
 
 For broad Agent changes, also build the release product:
 
 ~~~bash
-swift build -c release --product toki-agent
+swift build --package-path core -c release --product toki-agent
 ~~~
 
 ### hub
 
 ~~~bash
-swift test --package-path TokiHub
-swift build --package-path TokiHub -c release --product toki-hub
+swift test --package-path hub
+swift build --package-path hub -c release --product toki-hub
 ~~~
 
 ### app-format
@@ -49,7 +49,7 @@ swiftlint lint --strict --quiet
 
 ~~~bash
 xcodebuild test \
-  -project Toki.xcodeproj \
+  -project menubar/Toki.xcodeproj \
   -scheme Toki \
   -destination "platform=macOS" \
   CODE_SIGN_IDENTITY="" \
@@ -59,11 +59,11 @@ xcodebuild test \
 
 ### project
 
-After an explicitly approved `project.yml` or resource change:
+After an explicitly approved `menubar/project.yml` or resource change:
 
 ~~~bash
-xcodegen generate
-git diff -- Toki.xcodeproj
+(cd menubar && xcodegen generate)
+git diff -- menubar/Toki.xcodeproj
 ~~~
 
 Include the generated project diff with the source configuration change.

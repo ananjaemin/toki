@@ -3,3 +3,7 @@ allowBuilds:
   unrs-resolver: true
 minimumReleaseAgeExclude:
   - '@types/node@26.4.0'
+  - fumadocs-core@16.15.2
+  - fumadocs-ui@16.15.2
+overrides:
+  'eslint-plugin-react-hooks@7.1.1>zod-validation-error': 4.0.2

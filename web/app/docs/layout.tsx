@@ -9,7 +9,7 @@ type DocsLayoutPageProps = Readonly<{
 
 export default function DocsLayoutPage({ children }: DocsLayoutPageProps) {
   return (
-    <DocsLayout tree={docsSource.pageTree} {...docsLayoutOptions}>
+    <DocsLayout tree={docsSource.getPageTree()} {...docsLayoutOptions}>
       {children}
     </DocsLayout>
   );

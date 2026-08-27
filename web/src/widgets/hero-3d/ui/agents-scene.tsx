@@ -106,7 +106,7 @@ function buildOrbitGeometry(config: StreamConfig): BufferGeometry {
 function buildDustGeometry(): BufferGeometry {
   const positions = new Float32Array(DUST_COUNT * 3);
   const colors = new Float32Array(DUST_COUNT * 3);
-  const base = new Color('#9adbb6');
+  const base = new Color('#aa8bff');
   for (let index = 0; index < DUST_COUNT; index += 1) {
     const theta = Math.random() * TWO_PI;
     const phi = Math.acos(2 * Math.random() - 1);
@@ -211,13 +211,13 @@ function AgentCore({ sprite }: AgentCoreProps) {
     <group>
       <mesh ref={coreRef}>
         <icosahedronGeometry args={[0.4, 4]} />
-        {/* HDR green so the bloom pass reads the core as a light source. */}
-        <meshBasicMaterial color={[1.9, 3.1, 2.4]} toneMapped={false} />
+        {/* HDR Toki purple so the bloom pass reads the core as a light source. */}
+        <meshBasicMaterial color={[2.1, 1.75, 3.4]} toneMapped={false} />
       </mesh>
       <sprite scale={[3.4, 3.4, 1]}>
         <spriteMaterial
           blending={AdditiveBlending}
-          color="#2a5c40"
+          color="#3a2f6b"
           depthWrite={false}
           map={sprite}
           opacity={0.55}

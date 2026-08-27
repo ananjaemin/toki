@@ -32,7 +32,7 @@ export function SupportedAgents() {
           >
             {AGENT_TOOLS.map((tool) => (
               <li
-                className="flex min-h-[3.625rem] items-center border-r border-b border-toki-line px-[1.125rem] font-mono text-[13px] tracking-[-0.025em] text-[#d8dfdc] transition-colors duration-200 hover:bg-[rgba(120,200,152,0.09)] hover:text-toki-green sm:min-h-[4.5625rem]"
+                className="flex min-h-[3.625rem] items-center border-r border-b border-toki-line px-[1.125rem] font-mono text-[13px] tracking-[-0.025em] text-[#d8dfdc] transition-colors duration-200 hover:bg-[rgba(136,112,240,0.11)] hover:text-toki-purple sm:min-h-[4.5625rem]"
                 key={tool}
               >
                 {tool}

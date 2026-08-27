@@ -8,7 +8,7 @@ export function PrivacyPanel() {
     >
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_43%_80%_at_74%_50%,rgba(120,200,152,0.1),transparent_70%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_43%_80%_at_74%_50%,rgba(136,112,240,0.12),transparent_70%)]"
       />
       <SectionShell className="relative grid items-center gap-9 border-y border-toki-line py-[1.125rem] pb-[2.125rem] lg:grid-cols-[minmax(0,1fr)_minmax(17.5rem,0.78fr)] lg:gap-20 lg:py-[2.8125rem]">
         <div>
@@ -23,10 +23,10 @@ export function PrivacyPanel() {
         </div>
         <div
           aria-hidden="true"
-          className="grid aspect-square w-[8.25rem] place-items-center justify-self-start rounded-full border border-[rgba(120,200,152,0.27)] bg-[rgba(120,200,152,0.045)] shadow-[inset_0_0_50px_rgba(120,200,152,0.08),0_0_80px_rgba(120,200,152,0.08)] lg:w-[13.75rem] lg:justify-self-end"
+          className="grid aspect-square w-[8.25rem] place-items-center justify-self-start rounded-full border border-[rgba(136,112,240,0.3)] bg-[rgba(136,112,240,0.05)] shadow-[inset_0_0_50px_rgba(136,112,240,0.09),0_0_80px_rgba(136,112,240,0.09)] lg:w-[13.75rem] lg:justify-self-end"
         >
           <svg
-            className="w-12 fill-none stroke-toki-green stroke-[1.25] lg:w-[4.3125rem]"
+            className="w-12 fill-none stroke-toki-purple stroke-[1.25] lg:w-[4.3125rem]"
             role="presentation"
             viewBox="0 0 80 80"
           >

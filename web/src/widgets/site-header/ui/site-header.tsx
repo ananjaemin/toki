@@ -23,7 +23,7 @@ export function SiteHeader() {
         >
           <Image
             alt=""
-            className="size-[1.8125rem] rounded-lg shadow-[0_0_20px_rgba(120,200,152,0.25)]"
+            className="size-[1.8125rem] rounded-lg shadow-[0_0_20px_rgba(136,112,240,0.3)]"
             height={29}
             src="/icon.png"
             width={29}
@@ -36,7 +36,7 @@ export function SiteHeader() {
         >
           {NAV_LINKS.map((link) => (
             <Link
-              className="hidden transition-colors hover:text-toki-green sm:inline"
+              className="hidden transition-colors hover:text-toki-purple sm:inline"
               href={link.href}
               key={link.href}
             >

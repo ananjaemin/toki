@@ -10,19 +10,19 @@ export function SiteFooter() {
         <span>© TOKI · LOCAL-FIRST OBSERVABILITY</span>
         <span className="flex gap-4">
           <Link
-            className="transition-colors hover:text-toki-green"
+            className="transition-colors hover:text-toki-purple"
             href="/docs"
           >
             DOCS
           </Link>
           <Link
-            className="transition-colors hover:text-toki-green"
+            className="transition-colors hover:text-toki-purple"
             href="/download"
           >
             DOWNLOAD
           </Link>
           <a
-            className="transition-colors hover:text-toki-green"
+            className="transition-colors hover:text-toki-purple"
             href={siteConfig.links.github}
             rel="noreferrer"
             target="_blank"

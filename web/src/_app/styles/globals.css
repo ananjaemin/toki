@@ -5,6 +5,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
+  --color-toki-purple: #8870f0;
   --color-toki-green: #78c898;
   --color-toki-blue: #78a8f8;
   --color-toki-pink: #ed87af;
@@ -130,7 +131,7 @@
     --foreground: #f3f6f5;
     --card: rgb(255 255 255 / 5.5%);
     --card-foreground: #f3f6f5;
-    --primary: #78c898;
+    --primary: #8870f0;
     --primary-foreground: #0a0a0c;
     --secondary: rgb(255 255 255 / 8%);
     --secondary-foreground: #f3f6f5;
@@ -140,7 +141,7 @@
     --accent-foreground: #f3f6f5;
     --border: rgb(255 255 255 / 10%);
     --input: rgb(255 255 255 / 14%);
-    --ring: #78c898;
+    --ring: #8870f0;
 
     position: relative;
     isolation: isolate;
@@ -167,7 +168,7 @@
     mask-image: linear-gradient(to bottom, black 0%, transparent 75%);
   }
 
-  /* Restrained green and blue aurora light sources. */
+  /* Restrained purple and blue aurora light sources. */
   .luminous::after {
     position: fixed;
     inset: 0;
@@ -177,7 +178,7 @@
     background:
       radial-gradient(
         ellipse 48% 32% at 57% 12%,
-        rgb(120 200 152 / 12%),
+        rgb(136 112 240 / 14%),
         transparent 72%
       ),
       radial-gradient(
@@ -188,7 +189,7 @@
   }
 
   .luminous ::selection {
-    background: rgb(120 200 152 / 35%);
+    background: rgb(136 112 240 / 40%);
     color: #fff;
   }
 

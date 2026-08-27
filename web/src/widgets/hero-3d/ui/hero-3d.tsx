@@ -13,7 +13,7 @@ export function Hero3D() {
           <Pill>Local-first menu bar app</Pill>
           <h1 className="mx-auto mt-5 mb-6 max-w-[39.4rem] text-[clamp(3.25rem,6.45vw,5.5rem)] leading-[0.99] font-semibold tracking-[-0.061em] text-balance lg:mx-0">
             The work beneath{' '}
-            <span className="text-toki-green">the output.</span>
+            <span className="text-toki-purple">the output.</span>
           </h1>
           <p className="mx-auto mb-7 max-w-[30.3rem] text-lg leading-[1.55] tracking-[-0.025em] text-[#bec6c3] lg:mx-0">
             Toki makes the moving parts of AI-assisted work legible: tokens,
@@ -29,7 +29,7 @@ export function Hero3D() {
             </Button>
             <Button
               asChild
-              className="text-sm font-semibold text-[#d7dedb] hover:text-toki-blue"
+              className="text-sm font-semibold text-[#d7dedb] hover:text-toki-purple"
               size="lg"
               variant="ghost"
             >
@@ -61,7 +61,7 @@ export function Hero3D() {
             <span className="block text-[10px] tracking-[0.055em] text-[#9ea8a5]">
               PARALLEL
             </span>
-            <strong className="mt-1 block text-xl font-medium tracking-[-0.05em] text-toki-blue tabular-nums">
+            <strong className="mt-1 block text-xl font-medium tracking-[-0.05em] text-toki-purple tabular-nums">
               1.21×
             </strong>
           </div>

@@ -49,7 +49,7 @@ export function ScreenshotStrip() {
         <div className="grid items-end gap-3 md:grid-cols-[1.05fr_0.78fr_0.78fr] md:gap-[1.125rem]">
           {SHOTS.map((shot, index) => (
             <GlassCard
-              className={`rounded-[19px] p-2 shadow-[inset_0_1px_rgba(255,255,255,0.06),0_22px_38px_rgba(0,0,0,0.25)] transition-[border-color,transform] duration-300 hover:-translate-y-[7px] hover:border-[rgba(120,168,248,0.35)] sm:p-2.5 ${
+              className={`rounded-[19px] p-2 shadow-[inset_0_1px_rgba(255,255,255,0.06),0_22px_38px_rgba(0,0,0,0.25)] transition-[border-color,transform] duration-300 hover:-translate-y-[7px] hover:border-[rgba(136,112,240,0.35)] sm:p-2.5 ${
                 index === 0 ? 'md:-translate-y-[1.8125rem]' : ''
               }`}
               key={shot.src}

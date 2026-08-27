@@ -18,7 +18,7 @@ const METRICS: readonly Metric[] = [
     detail: 'Total work divided by AI Work Time.',
     label: 'Parallel multiplier',
     value: '1.21×',
-    valueClassName: 'text-toki-blue',
+    valueClassName: 'text-toki-purple',
   },
   {
     detail: 'The work on the primary stream.',
@@ -56,7 +56,7 @@ export function WorkTimeShowcase() {
           >
             {METRICS.map((metric) => (
               <li
-                className="glass-panel min-h-[8.875rem] rounded-2xl p-5 transition-[border-color,transform] duration-200 hover:-translate-y-[3px] hover:border-[rgba(120,200,152,0.35)] sm:min-h-[11.125rem] sm:p-6"
+                className="glass-panel min-h-[8.875rem] rounded-2xl p-5 transition-[border-color,transform] duration-200 hover:-translate-y-[3px] hover:border-[rgba(136,112,240,0.4)] sm:min-h-[11.125rem] sm:p-6"
                 key={metric.label}
               >
                 <b

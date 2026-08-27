@@ -23,7 +23,7 @@ export function DownloadCta() {
         </Button>
         <Button
           asChild
-          className="text-sm font-semibold text-[#d7dedb] hover:text-toki-blue"
+          className="text-sm font-semibold text-[#d7dedb] hover:text-toki-purple"
           size="lg"
           variant="ghost"
         >

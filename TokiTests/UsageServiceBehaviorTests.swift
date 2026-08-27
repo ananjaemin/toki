@@ -37,10 +37,11 @@ final class UsageServiceBehaviorTests: XCTestCase {
 
         await gate.waitForFirstRequest()
         await MainActor.run { service.selectDay(secondDay) }
-        await service.refresh()
+        let replacementRefresh = Task { await service.refresh() }
+        await gate.waitForRequestCount(2)
         await gate.release()
         await initialRefresh.value
-        await gate.waitForRequestCount(2)
+        await replacementRefresh.value
 
         var totalTokens = await MainActor.run { service.usageData.totalTokens }
         var date = await MainActor.run { service.usageData.date }
@@ -55,24 +56,27 @@ final class UsageServiceBehaviorTests: XCTestCase {
         XCTAssertEqual(date, secondDay)
     }
 
-    func test_usageService_queuesRemoteSyncRefreshDuringIdenticalActiveLoad() async {
+    func test_usageService_remoteSyncRefreshReplacesIdenticalActiveLoad() async {
         let gate = BlockingReaderGate()
         let reader = BlockingMockReader(name: "Mock", gate: gate) { _, _ in
             mockUsage(totalTokens: 100)
         }
-        let service = await MainActor.run { UsageService(readers: [reader]) }
+        let service = await MainActor.run {
+            UsageService(readers: [reader], comparisonDebounce: .seconds(30))
+        }
         let initialRefresh = Task { await service.refresh() }
 
         await gate.waitForFirstRequest()
-        await service.refreshAfterRemoteSyncChange()
+        let remoteRefresh = Task { await service.refreshAfterRemoteSyncChange() }
+        await gate.waitForRequestCount(2)
         let requestCountDuringLoad = await gate.requestCountSnapshot()
         await gate.release()
         await initialRefresh.value
-        await gate.waitForRequestCount(2)
+        await remoteRefresh.value
         let finalRequestCount = await gate.requestCountSnapshot()
 
-        XCTAssertEqual(requestCountDuringLoad, 1)
-        XCTAssertGreaterThanOrEqual(finalRequestCount, 2)
+        XCTAssertEqual(requestCountDuringLoad, 2)
+        XCTAssertEqual(finalRequestCount, 5)
     }
 
     func test_usageService_sortsModelsByActiveTime() async {

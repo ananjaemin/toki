@@ -82,6 +82,26 @@ final class PanelModelDetailRangeTests: XCTestCase {
             calendar: calendar))
     }
 
+    func test_usageReportClipsPartialHourlyBucketsToRollingRange() throws {
+        let calendar = Calendar.current
+        let startDate = tokiTestISODate("2026-04-10T10:30:30Z")
+        let endDate = try XCTUnwrap(calendar.date(byAdding: .hour, value: 24, to: startDate))
+
+        let report = UsageReportBuilder.report(
+            from: RawTokenUsage(),
+            date: startDate,
+            endDate: endDate,
+            sourceStats: [])
+
+        XCTAssertEqual(report.timeBuckets.count, 25)
+        XCTAssertEqual(report.timeBuckets.first?.startDate, startDate)
+        XCTAssertEqual(report.timeBuckets.first?.endDate, calendar.dateInterval(of: .hour, for: startDate)?.end)
+        XCTAssertEqual(
+            report.timeBuckets.last?.startDate,
+            calendar.dateInterval(of: .hour, for: endDate.addingTimeInterval(-1))?.start)
+        XCTAssertEqual(report.timeBuckets.last?.endDate, endDate)
+    }
+
     func test_presentationMarksLongRangeHourlyDataUnsupported() throws {
         let longRangeEnd = modelDetailStart.addingTimeInterval(86400 * 5)
 

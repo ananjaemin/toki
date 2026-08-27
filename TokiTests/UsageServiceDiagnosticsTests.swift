@@ -77,9 +77,11 @@ final class UsageServiceDiagnosticsTests: XCTestCase {
 
         await gate.waitForRequestCount(2)
         settings.setReader("Disabled", isEnabled: false)
-        await service.refresh()
+        let replacementRefresh = Task { await service.refresh() }
+        await gate.waitForRequestCount(3)
         await gate.release()
         await initialRefresh.value
+        await replacementRefresh.value
 
         var totalTokens = service.usageData.totalTokens
         let deadline = Date().addingTimeInterval(2)

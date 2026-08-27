@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 
 struct MenuBarUsageSummary: Equatable {
+    let currentUsageWindow: CurrentUsageWindow
     let totalTokens: Int
     let cost: Double
     let hasUnpricedUsage: Bool
@@ -27,7 +28,8 @@ func menuBarUsageToolTip(for summary: MenuBarUsageSummary) -> String {
         exclusions.append("data from failed readers")
     }
     let exclusionNote = exclusions.isEmpty ? "" : " (excludes \(exclusions.joined(separator: " and ")))"
-    return "Toki — Today: \(summary.totalTokens.formattedTokens()) tokens · \(estimate)\(exclusionNote)"
+    return "Toki — \(summary.currentUsageWindow.title): \(summary.totalTokens.formattedTokens()) tokens · "
+        + "\(estimate)\(exclusionNote)"
 }
 
 func menuBarUsageContainsUnpricedModels(_ models: [ModelStat], totalTokens: Int) -> Bool {
@@ -81,6 +83,7 @@ final class MenuBarUsageSummaryController {
         restartLoop()
         let notificationNames: [Notification.Name] = [
             .usagePanelMenuBarCostSettingDidChange,
+            .usagePanelCurrentUsageWindowDidChange,
             .usagePanelReaderSettingsDidChange,
             .usagePanelRefreshIntervalDidChange,
             .usagePanelModelPricingDidChange,
@@ -151,15 +154,17 @@ final class MenuBarUsageSummaryController {
         return { @MainActor in
             let settings = UsagePanelSettings()
             let calendar = Calendar.autoupdatingCurrent
-            let start = calendar.startOfDay(for: Date())
-            guard let end = calendar.date(byAdding: .day, value: 1, to: start) else { return nil }
+            let window = settings.currentUsageWindow
+            let interval = window.dateInterval(at: Date(), calendar: calendar)
             let request = UsageAggregationRequest(
-                start: start,
-                end: end,
+                start: interval.start,
+                end: interval.end,
                 enabledReaderNames: settings.normalizedReaderSettings(for: aggregator.readerNames),
-                includesEmptySourceRows: false)
+                includesEmptySourceRows: false,
+                liveContextWindow: window == .rolling24Hours ? .rolling24Hours : .calendarDay)
             let result = await aggregator.aggregateUsage(for: request)
             return MenuBarUsageSummary(
+                currentUsageWindow: window,
                 totalTokens: result.usageData.totalTokens,
                 cost: result.usageData.cost,
                 hasUnpricedUsage: menuBarUsageContainsUnpricedModels(

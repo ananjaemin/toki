@@ -281,6 +281,7 @@ extension UsageModelSelectionTests {
         }
         let service = UsageService(
             readers: [reader],
+            settings: UsagePanelSettings(defaults: defaults, readerNames: ["Mock"]),
             periodTokenTotalsCache: PeriodTokenTotalsCache(defaults: defaults))
 
         await service.refresh()

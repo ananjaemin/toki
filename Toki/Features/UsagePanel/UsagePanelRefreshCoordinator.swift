@@ -80,6 +80,9 @@ final class UsageWindowResultCache {
 final class UsagePanelRefreshCoordinator {
     private var refreshLoopTask: Task<Void, Never>?
     private var settingsRefreshTask: Task<Void, Never>?
+    private var settingsRefreshGeneration: UInt64 = 0
+    private var pendingRefreshesPeriodTokenTotals = false
+    private var pendingUsesWindowResultCache = true
 
     func startLoop(
         refreshImmediately: Bool,
@@ -99,19 +102,40 @@ final class UsagePanelRefreshCoordinator {
         }
     }
 
-    func scheduleSettingsRefresh(refresh: @escaping @MainActor () async -> Void) {
+    func scheduleSettingsRefresh(
+        refreshesPeriodTokenTotals: Bool,
+        usesWindowResultCache: Bool,
+        refresh: @escaping @MainActor (Bool, Bool) async -> Void) {
+        if settingsRefreshTask == nil {
+            pendingRefreshesPeriodTokenTotals = refreshesPeriodTokenTotals
+            pendingUsesWindowResultCache = usesWindowResultCache
+        } else {
+            pendingRefreshesPeriodTokenTotals = pendingRefreshesPeriodTokenTotals || refreshesPeriodTokenTotals
+            pendingUsesWindowResultCache = pendingUsesWindowResultCache && usesWindowResultCache
+        }
         settingsRefreshTask?.cancel()
+        settingsRefreshGeneration &+= 1
+        let generation = settingsRefreshGeneration
         settingsRefreshTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(150))
             guard !Task.isCancelled else { return }
-            await refresh()
+            let refreshesPeriodTokenTotals = pendingRefreshesPeriodTokenTotals
+            let usesWindowResultCache = pendingUsesWindowResultCache
+            await refresh(refreshesPeriodTokenTotals, usesWindowResultCache)
+            guard generation == settingsRefreshGeneration else { return }
+            settingsRefreshTask = nil
+            pendingRefreshesPeriodTokenTotals = false
+            pendingUsesWindowResultCache = true
         }
     }
 
     func cancel() {
         refreshLoopTask?.cancel()
         settingsRefreshTask?.cancel()
+        settingsRefreshGeneration &+= 1
         refreshLoopTask = nil
         settingsRefreshTask = nil
+        pendingRefreshesPeriodTokenTotals = false
+        pendingUsesWindowResultCache = true
     }
 }

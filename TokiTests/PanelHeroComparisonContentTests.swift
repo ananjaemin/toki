@@ -5,7 +5,8 @@ final class PanelHeroComparisonContentTests: XCTestCase {
     func test_noUsageYesterdayUsesTextOnlyNeutralState() throws {
         let content = try XCTUnwrap(PanelHeroComparisonContent.make(
             currentTotal: 120,
-            yesterdayTotal: 0))
+            previousTotal: 0,
+            reference: .yesterday))
 
         XCTAssertNil(content.symbolName)
         XCTAssertEqual(content.text, "No usage yesterday")
@@ -14,7 +15,8 @@ final class PanelHeroComparisonContentTests: XCTestCase {
     func test_equalTotalsUsesNeutralMinusState() throws {
         let content = try XCTUnwrap(PanelHeroComparisonContent.make(
             currentTotal: 120,
-            yesterdayTotal: 120))
+            previousTotal: 120,
+            reference: .yesterday))
 
         XCTAssertEqual(content.symbolName, Optional("minus"))
         XCTAssertEqual(content.text, "0% from yesterday")
@@ -23,14 +25,26 @@ final class PanelHeroComparisonContentTests: XCTestCase {
     func test_increasedAndDecreasedTotalsUseDirectionalStates() throws {
         let increased = try XCTUnwrap(PanelHeroComparisonContent.make(
             currentTotal: 150,
-            yesterdayTotal: 100))
+            previousTotal: 100,
+            reference: .yesterday))
         let decreased = try XCTUnwrap(PanelHeroComparisonContent.make(
             currentTotal: 50,
-            yesterdayTotal: 100))
+            previousTotal: 100,
+            reference: .yesterday))
 
         XCTAssertEqual(increased.symbolName, Optional("arrow.up"))
         XCTAssertEqual(increased.text, "50% from yesterday")
         XCTAssertEqual(decreased.symbolName, Optional("arrow.down"))
         XCTAssertEqual(decreased.text, "50% from yesterday")
+    }
+
+    func test_rollingComparisonUsesPrevious24HourCopy() throws {
+        let content = try XCTUnwrap(PanelHeroComparisonContent.make(
+            currentTotal: 120,
+            previousTotal: 0,
+            reference: .previous24Hours))
+
+        XCTAssertNil(content.symbolName)
+        XCTAssertEqual(content.text, "No usage in previous 24h")
     }
 }

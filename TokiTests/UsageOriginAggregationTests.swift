@@ -452,6 +452,9 @@ extension UsageOriginAggregationTests {
                     usage: makeUsage(input: 500, output: 0, cost: 1)),
                 remoteReader,
             ],
+            settings: UsagePanelSettings(
+                defaults: defaults,
+                readerNames: ["Codex", "Remote Devices"]),
             periodTokenTotalsCache: PeriodTokenTotalsCache(defaults: defaults))
 
         await service.refresh()

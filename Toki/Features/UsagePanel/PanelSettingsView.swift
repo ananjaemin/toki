@@ -24,6 +24,7 @@ struct PanelSettingsView: View {
             divider
             ScrollView(.vertical) {
                 VStack(spacing: 14) {
+                    usageWindowPicker
                     refreshPicker
                     settingsSection("Remote Sync") {
                         RemoteSyncSettingsSection(viewModel: remoteSyncSettings)
@@ -44,7 +45,7 @@ struct PanelSettingsView: View {
                                 get: { settings.showsZeroSourceRows },
                                 set: { settings.setShowsZeroSourceRows($0) }))
                         settingsToggle(
-                            "Show today's cost in menu bar",
+                            "Show current-period cost in menu bar",
                             isOn: Binding(
                                 get: { settings.showsMenuBarCost },
                                 set: { settings.setShowsMenuBarCost($0) }))
@@ -105,6 +106,30 @@ struct PanelSettingsView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
+        }
+    }
+
+    private var usageWindowPicker: some View {
+        settingsSection("Usage Window") {
+            VStack(alignment: .leading, spacing: 6) {
+                Picker(
+                    "Current usage window",
+                    selection: Binding(
+                        get: { settings.currentUsageWindow },
+                        set: { settings.setCurrentUsageWindow($0) })) {
+                    ForEach(CurrentUsageWindow.allCases) { window in
+                        Text(window.compactTitle).tag(window)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+
+                Text("Applies to the current view and menu bar. Past dates and custom ranges stay calendar-based.")
+                    .font(.system(size: 10))
+                    .foregroundColor(Color.white.opacity(0.35))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
         }
     }
 

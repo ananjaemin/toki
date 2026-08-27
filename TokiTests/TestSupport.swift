@@ -34,9 +34,20 @@ func mockActivityUsage(
 
 actor MockReaderRecorder {
     private var calls: [(start: Date, end: Date)] = []
+    private var waiters: [(target: Int, continuation: CheckedContinuation<Void, Never>)] = []
 
     func record(start: Date, end: Date) {
         calls.append((start: start, end: end))
+        let ready = waiters.filter { calls.count >= $0.target }
+        waiters.removeAll { calls.count >= $0.target }
+        ready.forEach { $0.continuation.resume() }
+    }
+
+    func waitForCallCount(_ target: Int) async {
+        guard calls.count < target else { return }
+        await withCheckedContinuation { continuation in
+            waiters.append((target, continuation))
+        }
     }
 
     func snapshot() -> [(start: Date, end: Date)] {

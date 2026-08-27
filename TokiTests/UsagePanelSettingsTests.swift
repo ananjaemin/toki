@@ -18,8 +18,10 @@ final class UsagePanelSettingsTests: XCTestCase {
         XCTAssertFalse(settings.showsZeroSourceRows)
         XCTAssertTrue(settings.autoUpdatesModelPricing)
         XCTAssertFalse(settings.showsMenuBarCost)
+        XCTAssertEqual(settings.currentUsageWindow, .calendarDay)
         XCTAssertTrue(UsagePanelSettings.isAutoUpdatePricingEnabled(defaults: defaults))
         XCTAssertFalse(UsagePanelSettings.isMenuBarCostEnabled(defaults: defaults))
+        XCTAssertEqual(UsagePanelSettings.currentUsageWindow(defaults: defaults), .calendarDay)
     }
 
     func test_persistsChanges() {
@@ -36,6 +38,7 @@ final class UsagePanelSettingsTests: XCTestCase {
         settings.showsZeroSourceRows = true
         settings.setAutoUpdatesModelPricing(false)
         settings.setShowsMenuBarCost(true)
+        settings.setCurrentUsageWindow(.rolling24Hours)
 
         let reloaded = UsagePanelSettings(defaults: defaults, readerNames: ["Codex", "Cursor"])
 
@@ -45,8 +48,10 @@ final class UsagePanelSettingsTests: XCTestCase {
         XCTAssertTrue(reloaded.showsZeroSourceRows)
         XCTAssertFalse(reloaded.autoUpdatesModelPricing)
         XCTAssertTrue(reloaded.showsMenuBarCost)
+        XCTAssertEqual(reloaded.currentUsageWindow, .rolling24Hours)
         XCTAssertFalse(UsagePanelSettings.isAutoUpdatePricingEnabled(defaults: defaults))
         XCTAssertTrue(UsagePanelSettings.isMenuBarCostEnabled(defaults: defaults))
+        XCTAssertEqual(UsagePanelSettings.currentUsageWindow(defaults: defaults), .rolling24Hours)
     }
 
     func test_normalizesUnsupportedRefreshInterval() {
@@ -96,6 +101,29 @@ final class UsagePanelSettingsTests: XCTestCase {
         settings.setReader("Codex", isEnabled: false)
 
         XCTAssertEqual(notificationCount, 1)
+    }
+
+    func test_currentUsageWindowRecoversInvalidValueAndNotifiesOnlyOnChange() {
+        let (suiteName, defaults) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set("unsupported", forKey: "usagePanel.currentUsageWindow")
+        var notificationCount = 0
+        let observer = NotificationCenter.default.addObserver(
+            forName: .usagePanelCurrentUsageWindowDidChange,
+            object: nil,
+            queue: nil) { _ in
+                notificationCount += 1
+            }
+        defer { NotificationCenter.default.removeObserver(observer) }
+        let settings = UsagePanelSettings(defaults: defaults, readerNames: ["Codex"])
+
+        XCTAssertEqual(settings.currentUsageWindow, .calendarDay)
+
+        settings.setCurrentUsageWindow(.rolling24Hours)
+        settings.setCurrentUsageWindow(.rolling24Hours)
+
+        XCTAssertEqual(notificationCount, 1)
+        XCTAssertEqual(UsagePanelSettings.currentUsageWindow(defaults: defaults), .rolling24Hours)
     }
 
     func test_autoPricingSetterRefreshesCatalogAndPostsChangeNotification() async {

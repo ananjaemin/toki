@@ -1,6 +1,8 @@
 import Foundation
 import TokiUsageCore
 
+// swiftlint:disable file_length
+
 struct UsageServiceSnapshot: Equatable {
     var combinedUsageData: UsageData = .empty
     var combinedModelReports: [String: UsageModelReport] = [:]
@@ -293,14 +295,16 @@ extension UsagePanelViewModel {
         isShowingCurrentUsageWindow
     }
 
-    func handleCurrentUsageWindowChange() {
-        guard isShowingCurrentUsageWindow else { return }
+    @discardableResult
+    func handleCurrentUsageWindowChange() -> Bool {
+        guard isShowingCurrentUsageWindow else { return false }
         cancelActiveUsageRefresh()
         resetYesterdayComparison()
         updateSnapshot {
             $0.isLoading = presentedUsageRequest == nil
             $0.isRefreshing = presentedUsageRequest != nil
         }
+        return true
     }
 
     func selectUsageScope(_ scope: UsageScope) {

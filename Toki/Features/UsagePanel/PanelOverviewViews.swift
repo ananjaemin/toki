@@ -4,6 +4,7 @@ import SwiftUI
 struct PanelHeroView: View {
     let usage: UsageData
     let isLoading: Bool
+    let currentUsageWindow: CurrentUsageWindow?
     let yesterdayTotal: Int?
 
     var body: some View {
@@ -61,14 +62,19 @@ struct PanelHeroView: View {
     private var placeholderComparisonContent: PanelHeroComparisonContent {
         PanelHeroComparisonContent(
             symbolName: "minus",
-            text: "0% from yesterday",
+            text: "0% from \(comparisonReference.comparisonText)",
             color: Color.white.opacity(0.35))
     }
 
     private var comparisonContent: PanelHeroComparisonContent? {
         PanelHeroComparisonContent.make(
             currentTotal: usage.totalTokens,
-            yesterdayTotal: yesterdayTotal)
+            previousTotal: yesterdayTotal,
+            reference: comparisonReference)
+    }
+
+    private var comparisonReference: PanelHeroComparisonReference {
+        currentUsageWindow == .rolling24Hours ? .previous24Hours : .yesterday
     }
 }
 

@@ -14,7 +14,9 @@ export function LandingPage() {
       <SiteHeader />
       <main className="flex-1">
         <Hero3D />
-        <SectionShell className="h-px bg-[linear-gradient(90deg,transparent,var(--color-toki-line)_12%,var(--color-toki-line)_88%,transparent)]" />
+        <SectionShell>
+          <div className="h-px bg-toki-line" />
+        </SectionShell>
         <WorkTimeShowcase />
         <ScreenshotStrip />
         <SupportedAgents />

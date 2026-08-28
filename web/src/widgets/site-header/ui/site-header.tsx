@@ -45,7 +45,7 @@ export function SiteHeader() {
           ))}
           <Button asChild variant="glow">
             <a href={siteConfig.links.latestRelease}>
-              Get Toki
+              Download Toki
               <ArrowDownToLine aria-hidden="true" />
             </a>
           </Button>

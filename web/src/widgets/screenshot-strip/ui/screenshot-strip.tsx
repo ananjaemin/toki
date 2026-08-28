@@ -57,7 +57,7 @@ export function ScreenshotStrip() {
           {SHOTS.map((shot, index) => (
             <RevealItem key={shot.src}>
               <GlassCard
-                className={`rounded-[19px] p-2 shadow-[inset_0_1px_rgba(255,255,255,0.06),0_22px_38px_rgba(0,0,0,0.25)] transition-[border-color,transform] duration-300 hover:-translate-y-[7px] hover:border-[rgba(136,112,240,0.35)] sm:p-2.5 ${
+                className={`rounded-[19px] p-2 shadow-[inset_0_1px_rgba(255,255,255,0.06),0_22px_38px_rgba(0,0,0,0.25)] sm:p-2.5 ${
                   index === 0 ? 'md:-translate-y-[1.8125rem]' : ''
                 }`}
               >

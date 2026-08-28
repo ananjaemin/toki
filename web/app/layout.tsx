@@ -57,6 +57,9 @@ export default function RootLayout({ children }: RootLayoutProps) {
       className={`${inter.variable} ${geistMono.variable}`}
     >
       <body>
+        <noscript>
+          <style>{`[data-reveal],[data-reveal-group],[data-reveal-item]{opacity:1!important;transform:none!important}`}</style>
+        </noscript>
         <AppProviders>{children}</AppProviders>
       </body>
     </html>

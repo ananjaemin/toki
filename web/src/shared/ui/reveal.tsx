@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, useReducedMotion, type Variants } from 'motion/react';
-import { useEffect, useState, type ComponentProps } from 'react';
+import type { ComponentProps } from 'react';
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 const VIEWPORT = { amount: 0.18, once: true } as const;
@@ -46,82 +46,67 @@ type RevealListProps = Omit<
 type RevealItemProps = Omit<ComponentProps<typeof motion.div>, 'variants'>;
 type RevealListItemProps = Omit<ComponentProps<typeof motion.li>, 'variants'>;
 
-function useRevealAnimation() {
-  const [isMounted, setIsMounted] = useState(false);
-  const shouldReduceMotion = useReducedMotion();
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  return isMounted && !shouldReduceMotion;
-}
-
 function Reveal(props: RevealProps) {
-  const shouldAnimate = useRevealAnimation();
+  const shouldReduceMotion = useReducedMotion();
 
   return (
     <motion.div
       data-reveal=""
       {...props}
-      initial={shouldAnimate ? 'hidden' : false}
-      variants={shouldAnimate ? REVEAL_VARIANTS : undefined}
+      initial={shouldReduceMotion ? false : 'hidden'}
+      variants={shouldReduceMotion ? undefined : REVEAL_VARIANTS}
       viewport={VIEWPORT}
-      whileInView={shouldAnimate ? 'visible' : undefined}
+      whileInView={shouldReduceMotion ? undefined : 'visible'}
     />
   );
 }
 
 function RevealGroup(props: RevealGroupProps) {
-  const shouldAnimate = useRevealAnimation();
+  const shouldReduceMotion = useReducedMotion();
 
   return (
     <motion.div
       data-reveal-group=""
       {...props}
-      initial={shouldAnimate ? 'hidden' : false}
-      variants={shouldAnimate ? STAGGER_VARIANTS : undefined}
+      initial={shouldReduceMotion ? false : 'hidden'}
+      variants={shouldReduceMotion ? undefined : STAGGER_VARIANTS}
       viewport={VIEWPORT}
-      whileInView={shouldAnimate ? 'visible' : undefined}
+      whileInView={shouldReduceMotion ? undefined : 'visible'}
     />
   );
 }
 
 function RevealList(props: RevealListProps) {
-  const shouldAnimate = useRevealAnimation();
+  const shouldReduceMotion = useReducedMotion();
 
   return (
     <motion.ul
       data-reveal-group=""
       {...props}
-      initial={shouldAnimate ? 'hidden' : false}
-      variants={shouldAnimate ? STAGGER_VARIANTS : undefined}
+      initial={shouldReduceMotion ? false : 'hidden'}
+      variants={shouldReduceMotion ? undefined : STAGGER_VARIANTS}
       viewport={VIEWPORT}
-      whileInView={shouldAnimate ? 'visible' : undefined}
+      whileInView={shouldReduceMotion ? undefined : 'visible'}
     />
   );
 }
 
 function RevealItem(props: RevealItemProps) {
-  const shouldAnimate = useRevealAnimation();
-
   return (
     <motion.div
       data-reveal-item=""
       {...props}
-      variants={shouldAnimate ? STAGGER_ITEM_VARIANTS : undefined}
+      variants={STAGGER_ITEM_VARIANTS}
     />
   );
 }
 
 function RevealListItem(props: RevealListItemProps) {
-  const shouldAnimate = useRevealAnimation();
-
   return (
     <motion.li
       data-reveal-item=""
       {...props}
-      variants={shouldAnimate ? STAGGER_ITEM_VARIANTS : undefined}
+      variants={STAGGER_ITEM_VARIANTS}
     />
   );
 }

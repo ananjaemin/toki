@@ -41,6 +41,7 @@ final class LocalUsageReaderRegistryTests: XCTestCase {
         XCTAssertEqual(
             paths.omoSessionDirectories.map(\.path),
             [
+                "/tmp/toki-reader-home/.omo/sessions",
                 "/tmp/toki-reader-home/.omo/agent/sessions",
                 "/tmp/toki-reader-home/.omo/profiles",
                 "/tmp/toki-reader-home/.senpi/agent/sessions",

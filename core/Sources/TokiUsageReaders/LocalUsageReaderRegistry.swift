@@ -105,6 +105,7 @@ public struct LocalUsageReaderPaths: Equatable {
 
     public var omoSessionDirectories: [URL] {
         [
+            homeDirectory.appendingPathComponent(".omo/sessions"),
             homeDirectory.appendingPathComponent(".omo/agent/sessions"),
             homeDirectory.appendingPathComponent(".omo/profiles"),
             homeDirectory.appendingPathComponent(".senpi/agent/sessions"),

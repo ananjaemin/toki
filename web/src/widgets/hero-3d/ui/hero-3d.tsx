@@ -1,10 +1,14 @@
 import { ArrowDownToLine, MoveRight } from 'lucide-react';
 
-import { siteConfig } from '@/shared/config';
+import type { TokiRelease } from '@/entities/release';
 import { cn } from '@/shared/lib/cn';
 import { Button, Pill, SectionShell } from '@/shared/ui';
 
 import { HeroArt } from './hero-art';
+
+type Hero3DProps = Readonly<{
+  latestRelease: TokiRelease;
+}>;
 
 type HeroMetricProps = Readonly<{
   className: string;
@@ -30,7 +34,10 @@ function HeroMetric({ className, label, value }: HeroMetricProps) {
   );
 }
 
-export function Hero3D() {
+export function Hero3D({ latestRelease }: Hero3DProps) {
+  const downloadUrl =
+    latestRelease.asset?.downloadUrl ?? latestRelease.releaseUrl;
+
   return (
     <SectionShell className="relative pt-12 pb-20 lg:pt-[5.8rem] lg:pb-[5.4rem]">
       <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(26.25rem,0.9fr)] lg:gap-[clamp(2.5rem,4vw,4.5rem)]">
@@ -51,8 +58,8 @@ export function Hero3D() {
           </p>
           <div className="flex flex-wrap items-center justify-start gap-3">
             <Button asChild size="lg" variant="glow">
-              <a href={siteConfig.links.latestRelease}>
-                Download Toki
+              <a href={downloadUrl}>
+                Download Toki {latestRelease.tagName}
                 <ArrowDownToLine aria-hidden="true" />
               </a>
             </Button>

@@ -11,7 +11,18 @@ final class LocalUsageReaderRegistryTests: XCTestCase {
         XCTAssertEqual(aggregatorNames.last, "Remote Devices")
         XCTAssertEqual(
             localNames,
-            ["Claude Code", "Codex", "Hermes", "Cursor", "Gemini CLI", "GJC", "OpenCode", "OpenClaw"])
+            [
+                "Claude Code",
+                "Codex",
+                "Hermes",
+                "Cursor",
+                "Gemini CLI",
+                "OMO",
+                "OMP",
+                "GJC",
+                "OpenCode",
+                "OpenClaw",
+            ])
     }
 
     func test_readerPathsUseInjectedHomeAndXDGDirectories() {
@@ -27,6 +38,26 @@ final class LocalUsageReaderRegistryTests: XCTestCase {
         XCTAssertEqual(paths.claudeProjects.path, "/tmp/toki-reader-home/.claude/projects")
         XCTAssertEqual(paths.hermesDatabase.path, "/tmp/toki-reader-home/.hermes/state.db")
         XCTAssertEqual(paths.openCodeDatabase.path, "/tmp/toki-xdg-data/opencode/opencode.db")
+        XCTAssertEqual(
+            paths.omoSessionDirectories.map(\.path),
+            [
+                "/tmp/toki-reader-home/.omo/agent/sessions",
+                "/tmp/toki-reader-home/.omo/profiles",
+                "/tmp/toki-reader-home/.senpi/agent/sessions",
+                "/tmp/toki-reader-home/.senpi/profiles",
+                "/tmp/toki-reader-home/.pi/agent/sessions",
+                "/tmp/toki-reader-home/.pi/profiles",
+                "/tmp/toki-xdg-data/senpi/sessions",
+                "/tmp/toki-xdg-data/senpi/profiles",
+            ])
+        XCTAssertEqual(
+            paths.ompSessionDirectories.map(\.path),
+            [
+                "/tmp/toki-reader-home/.omp/agent/sessions",
+                "/tmp/toki-reader-home/.omp/profiles",
+                "/tmp/toki-xdg-data/omp/sessions",
+                "/tmp/toki-xdg-data/omp/profiles",
+            ])
         XCTAssertEqual(paths.agentCacheDirectory.path, "/tmp/toki-xdg-state/toki-agent")
         #if os(Linux)
             XCTAssertEqual(

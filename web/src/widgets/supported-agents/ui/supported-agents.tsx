@@ -12,6 +12,8 @@ const AGENT_TOOLS: readonly string[] = [
   'Hermes',
   'Cursor',
   'Gemini CLI',
+  'OMO',
+  'OMP',
   'GJC',
   'OpenCode',
   'OpenClaw',

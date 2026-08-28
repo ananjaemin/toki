@@ -216,6 +216,7 @@ final class UsagePanelSettingsTests: XCTestCase {
     func test_defaultReaderNamesMatchAggregatorReaders() {
         let settingsReaderNames = UsagePanelSettings.defaultReaderNames
         XCTAssertEqual(settingsReaderNames, UsageAggregator.defaultReaders.map(\.name))
+        XCTAssertTrue(settingsReaderNames.contains("OMP"))
         XCTAssertTrue(settingsReaderNames.contains("GJC"))
         XCTAssertTrue(settingsReaderNames.contains("Hermes"))
         XCTAssertTrue(settingsReaderNames.contains("Remote Devices"))

@@ -103,6 +103,28 @@ public struct LocalUsageReaderPaths: Equatable {
         homeDirectory.appendingPathComponent(".gjc/agent/sessions")
     }
 
+    public var omoSessionDirectories: [URL] {
+        [
+            homeDirectory.appendingPathComponent(".omo/agent/sessions"),
+            homeDirectory.appendingPathComponent(".omo/profiles"),
+            homeDirectory.appendingPathComponent(".senpi/agent/sessions"),
+            homeDirectory.appendingPathComponent(".senpi/profiles"),
+            homeDirectory.appendingPathComponent(".pi/agent/sessions"),
+            homeDirectory.appendingPathComponent(".pi/profiles"),
+            xdgDataDirectory.appendingPathComponent("senpi/sessions"),
+            xdgDataDirectory.appendingPathComponent("senpi/profiles"),
+        ]
+    }
+
+    public var ompSessionDirectories: [URL] {
+        [
+            homeDirectory.appendingPathComponent(".omp/agent/sessions"),
+            homeDirectory.appendingPathComponent(".omp/profiles"),
+            xdgDataDirectory.appendingPathComponent("omp/sessions"),
+            xdgDataDirectory.appendingPathComponent("omp/profiles"),
+        ]
+    }
+
     public var openCodeDatabase: URL {
         xdgDataDirectory.appendingPathComponent("opencode/opencode.db")
     }
@@ -205,6 +227,16 @@ public enum LocalUsageReaderRegistry {
             LocalUsageReaderDescriptor(
                 reader: GeminiReader(chatsBaseURLOverride: paths.geminiChats),
                 sourceLocations: [.directory(paths.geminiChats, extensions: ["json"])]),
+            LocalUsageReaderDescriptor(
+                reader: OMOReader(sessionDirectoriesOverride: paths.omoSessionDirectories),
+                sourceLocations: paths.omoSessionDirectories.map {
+                    .directory($0, extensions: ["jsonl"])
+                }),
+            LocalUsageReaderDescriptor(
+                reader: OMPReader(sessionDirectoriesOverride: paths.ompSessionDirectories),
+                sourceLocations: paths.ompSessionDirectories.map {
+                    .directory($0, extensions: ["jsonl"])
+                }),
             LocalUsageReaderDescriptor(
                 reader: GJCReader(sessionsURLOverride: paths.gjcSessions),
                 sourceLocations: [.directory(paths.gjcSessions, extensions: ["jsonl"])]),

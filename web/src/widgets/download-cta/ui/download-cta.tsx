@@ -1,9 +1,17 @@
 import { ArrowDownToLine, MoveRight } from 'lucide-react';
 
+import type { TokiRelease } from '@/entities/release';
 import { siteConfig } from '@/shared/config';
 import { Button, Pill, Reveal, SectionShell } from '@/shared/ui';
 
-export function DownloadCta() {
+type DownloadCtaProps = Readonly<{
+  latestRelease: TokiRelease;
+}>;
+
+export function DownloadCta({ latestRelease }: DownloadCtaProps) {
+  const downloadUrl =
+    latestRelease.asset?.downloadUrl ?? latestRelease.releaseUrl;
+
   return (
     <SectionShell className="py-[5.5rem] pb-[4.875rem] lg:pt-[9.25rem] lg:pb-28">
       <Reveal className="text-center">
@@ -17,8 +25,8 @@ export function DownloadCta() {
         </p>
         <div className="mb-10 flex flex-wrap items-center justify-center gap-3">
           <Button asChild size="lg" variant="glow">
-            <a href={siteConfig.links.latestRelease}>
-              Download Toki
+            <a href={downloadUrl}>
+              Download Toki {latestRelease.tagName}
               <ArrowDownToLine aria-hidden="true" />
             </a>
           </Button>

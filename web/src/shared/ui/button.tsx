@@ -19,6 +19,7 @@ const buttonVariants = cva(
           'bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80',
         ghost: 'hover:bg-accent hover:text-accent-foreground',
         link: 'text-primary underline-offset-4 hover:underline',
+        glow: 'min-h-11 rounded-[11px] border border-[rgba(136,112,240,0.38)] bg-gradient-to-br from-[rgba(136,112,240,0.2)] to-[rgba(120,168,248,0.12)] font-semibold text-toki-ink shadow-[inset_0_1px_rgba(255,255,255,0.16),0_8px_24px_rgba(0,0,0,0.22)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[inset_0_1px_rgba(255,255,255,0.18),0_0_28px_rgba(136,112,240,0.26),0_12px_28px_rgba(0,0,0,0.27)]',
       },
       size: {
         default: 'h-9 px-4 py-2',

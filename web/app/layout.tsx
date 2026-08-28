@@ -1,9 +1,22 @@
 import type { Metadata, Viewport } from 'next';
+import { Geist_Mono, Inter } from 'next/font/google';
 import type { ReactNode } from 'react';
 
 import { AppProviders } from '@/_app/providers';
 import '@/_app/styles/globals.css';
 import { siteConfig } from '@/shared/config';
+
+const inter = Inter({
+  display: 'swap',
+  subsets: ['latin'],
+  variable: '--font-inter',
+});
+
+const geistMono = Geist_Mono({
+  display: 'swap',
+  subsets: ['latin'],
+  variable: '--font-geist-mono',
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
@@ -26,7 +39,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#fafafa' },
-    { media: '(prefers-color-scheme: dark)', color: '#09090b' },
+    { media: '(prefers-color-scheme: dark)', color: '#0a0a0c' },
   ],
   width: 'device-width',
 };
@@ -37,7 +50,12 @@ type RootLayoutProps = Readonly<{
 
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
-    <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth">
+    <html
+      lang="en"
+      suppressHydrationWarning
+      data-scroll-behavior="smooth"
+      className={`${inter.variable} ${geistMono.variable}`}
+    >
       <body>
         <AppProviders>{children}</AppProviders>
       </body>

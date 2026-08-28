@@ -213,15 +213,16 @@ function AgentCore({ sprite }: AgentCoreProps) {
     <group>
       <mesh ref={coreRef}>
         <icosahedronGeometry args={[0.4, 4]} />
-        <meshBasicMaterial color="#6955a5" toneMapped={false} />
+        {/* HDR Toki purple so the bloom pass reads the core as a light source. */}
+        <meshBasicMaterial color={[2.1, 1.75, 3.4]} toneMapped={false} />
       </mesh>
-      <sprite scale={[3, 3, 1]}>
+      <sprite scale={[3.4, 3.4, 1]}>
         <spriteMaterial
           blending={AdditiveBlending}
-          color="#2e2454"
+          color="#3a2f6b"
           depthWrite={false}
           map={sprite}
-          opacity={0.36}
+          opacity={0.55}
           transparent
         />
       </sprite>
@@ -306,9 +307,9 @@ export function AgentsScene() {
         <DustField sprite={sprite} />
         <EffectComposer multisampling={0}>
           <Bloom
-            intensity={0.55}
-            luminanceSmoothing={0.38}
-            luminanceThreshold={0.3}
+            intensity={1.2}
+            luminanceSmoothing={0.3}
+            luminanceThreshold={0.16}
             mipmapBlur
           />
         </EffectComposer>

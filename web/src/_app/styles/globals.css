@@ -211,4 +211,12 @@
   html {
     scroll-behavior: auto;
   }
+
+  [data-reveal],
+  [data-reveal-item] {
+    /* biome-ignore lint/complexity/noImportantStyles: Overrides Motion's inline initial state for reduced-motion users. */
+    opacity: 1 !important;
+    /* biome-ignore lint/complexity/noImportantStyles: Overrides Motion's inline initial state for reduced-motion users. */
+    transform: none !important;
+  }
 }

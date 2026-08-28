@@ -1,4 +1,10 @@
-import { Pill, SectionShell } from '@/shared/ui';
+import {
+  Pill,
+  Reveal,
+  RevealList,
+  RevealListItem,
+  SectionShell,
+} from '@/shared/ui';
 
 type Metric = Readonly<{
   detail: string;
@@ -39,7 +45,7 @@ export function WorkTimeShowcase() {
     <section id="time">
       <SectionShell className="py-[6.375rem] lg:py-[8.5rem]">
         <div className="grid items-end gap-9 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)] lg:gap-[3.125rem]">
-          <div>
+          <Reveal>
             <Pill>Time view</Pill>
             <h2 className="mt-5 max-w-[43.125rem] text-[clamp(2.4375rem,4.6vw,3.8125rem)] leading-[1.01] font-semibold tracking-[-0.057em] text-balance">
               A total that knows what happened in parallel.
@@ -49,13 +55,13 @@ export function WorkTimeShowcase() {
               streams—then counts overlap once so AI Work Time means something
               useful.
             </p>
-          </div>
-          <ul
+          </Reveal>
+          <RevealList
             aria-label="Toki time measurements"
             className="m-0 grid list-none gap-2.5 p-0 sm:grid-cols-2 sm:gap-3.5"
           >
             {METRICS.map((metric) => (
-              <li
+              <RevealListItem
                 className="glass-panel min-h-[8.875rem] rounded-2xl p-5 transition-[border-color,transform] duration-200 hover:-translate-y-[3px] hover:border-[rgba(136,112,240,0.4)] sm:min-h-[11.125rem] sm:p-6"
                 key={metric.label}
               >
@@ -70,9 +76,9 @@ export function WorkTimeShowcase() {
                 <p className="mt-[5px] text-xs leading-[1.45] text-[#8e9895]">
                   {metric.detail}
                 </p>
-              </li>
+              </RevealListItem>
             ))}
-          </ul>
+          </RevealList>
         </div>
       </SectionShell>
     </section>

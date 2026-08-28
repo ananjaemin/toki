@@ -1,6 +1,13 @@
 import Image from 'next/image';
 
-import { GlassCard, Pill, SectionShell } from '@/shared/ui';
+import {
+  GlassCard,
+  Pill,
+  Reveal,
+  RevealGroup,
+  RevealItem,
+  SectionShell,
+} from '@/shared/ui';
 
 type Shot = Readonly<{
   alt: string;
@@ -30,7 +37,7 @@ export function ScreenshotStrip() {
   return (
     <section aria-labelledby="screens-title">
       <SectionShell className="py-[6.375rem] lg:py-[8.5rem]">
-        <div className="mb-[1.875rem] gap-5 sm:flex sm:items-end sm:justify-between lg:mb-[2.875rem]">
+        <Reveal className="mb-[1.875rem] gap-5 sm:flex sm:items-end sm:justify-between lg:mb-[2.875rem]">
           <div>
             <Pill>Live in the popover</Pill>
             <h2
@@ -45,31 +52,32 @@ export function ScreenshotStrip() {
             <br />
             ONE MENU-BAR HOME
           </p>
-        </div>
-        <div className="grid items-end gap-3 md:grid-cols-[1.05fr_0.78fr_0.78fr] md:gap-[1.125rem]">
+        </Reveal>
+        <RevealGroup className="grid items-end gap-3 md:grid-cols-[1.05fr_0.78fr_0.78fr] md:gap-[1.125rem]">
           {SHOTS.map((shot, index) => (
-            <GlassCard
-              className={`rounded-[19px] p-2 shadow-[inset_0_1px_rgba(255,255,255,0.06),0_22px_38px_rgba(0,0,0,0.25)] transition-[border-color,transform] duration-300 hover:-translate-y-[7px] hover:border-[rgba(136,112,240,0.35)] sm:p-2.5 ${
-                index === 0 ? 'md:-translate-y-[1.8125rem]' : ''
-              }`}
-              key={shot.src}
-            >
-              <figure className="m-0">
-                <Image
-                  alt={shot.alt}
-                  className="w-full rounded-[11px]"
-                  height={840}
-                  sizes="(max-width: 767px) 92vw, 30vw"
-                  src={shot.src}
-                  width={640}
-                />
-                <figcaption className="px-1 pt-3 pb-[3px] font-mono text-[10px] tracking-[0.045em] text-[#99a29f]">
-                  {shot.caption}
-                </figcaption>
-              </figure>
-            </GlassCard>
+            <RevealItem key={shot.src}>
+              <GlassCard
+                className={`rounded-[19px] p-2 shadow-[inset_0_1px_rgba(255,255,255,0.06),0_22px_38px_rgba(0,0,0,0.25)] transition-[border-color,transform] duration-300 hover:-translate-y-[7px] hover:border-[rgba(136,112,240,0.35)] sm:p-2.5 ${
+                  index === 0 ? 'md:-translate-y-[1.8125rem]' : ''
+                }`}
+              >
+                <figure className="m-0">
+                  <Image
+                    alt={shot.alt}
+                    className="w-full rounded-[11px]"
+                    height={840}
+                    sizes="(max-width: 767px) 92vw, 30vw"
+                    src={shot.src}
+                    width={640}
+                  />
+                  <figcaption className="px-1 pt-3 pb-[3px] font-mono text-[10px] tracking-[0.045em] text-[#99a29f]">
+                    {shot.caption}
+                  </figcaption>
+                </figure>
+              </GlassCard>
+            </RevealItem>
           ))}
-        </div>
+        </RevealGroup>
       </SectionShell>
     </section>
   );

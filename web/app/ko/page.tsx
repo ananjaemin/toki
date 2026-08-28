@@ -19,7 +19,9 @@ export const metadata: Metadata = {
     alternateLocale: ['en_US'],
     description,
     locale: 'ko_KR',
+    siteName: 'Toki',
     title: 'Toki',
+    type: 'website',
     url: '/ko',
   },
 };

@@ -102,7 +102,7 @@ const englishCopy = {
   },
   privacy: {
     description:
-      'Local collection stays on-device. Toki reads supported local stores to build its view; no hosted account is required for local use.',
+      'Local collection stays on-device. If you opt into Remote Sync, supported usage data is sent as an encrypted snapshot to your configured Hub; no hosted account is required for local use.',
     pill: 'Private by default',
     title: 'Your usage stays yours.',
   },
@@ -238,7 +238,7 @@ const koreanCopy = {
   },
   privacy: {
     description:
-      '로컬 사용 기록은 기기 밖으로 나가지 않습니다. Toki는 지원되는 로컬 저장소만 읽어 화면을 구성하며, 로컬 사용에는 호스팅 계정이 필요하지 않습니다.',
+      '로컬 모드에서는 사용 기록이 기기 안에 머뭅니다. 원격 동기화를 켜면 지원되는 사용 데이터가 암호화된 스냅샷으로 설정한 Hub에 전송되며, 로컬 사용에는 호스팅 계정이 필요하지 않습니다.',
     pill: '처음부터 비공개',
     title: '사용 기록은 당신에게만.',
   },

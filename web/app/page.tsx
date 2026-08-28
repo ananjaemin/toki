@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 
 import { getTokiReleaseData } from '@/entities/release';
 import { LandingPage } from '@/_pages/landing';
+import { siteConfig } from '@/shared/config';
 
 export const metadata: Metadata = {
   alternates: {
@@ -13,7 +14,12 @@ export const metadata: Metadata = {
   },
   openGraph: {
     alternateLocale: ['ko_KR'],
+    description: siteConfig.description,
     locale: 'en_US',
+    siteName: siteConfig.name,
+    title: siteConfig.name,
+    type: 'website',
+    url: siteConfig.url,
   },
 };
 

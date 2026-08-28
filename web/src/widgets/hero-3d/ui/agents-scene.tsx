@@ -14,6 +14,8 @@ import {
   type Texture,
 } from 'three';
 
+import { HeroFallback } from './hero-fallback';
+
 const TWO_PI = Math.PI * 2;
 
 type StreamConfig = Readonly<{
@@ -240,50 +242,74 @@ function ParallaxRig() {
 }
 
 export function AgentsScene() {
-  const [frameloop, setFrameloop] = useState<'always' | 'never'>('always');
+  const canvasWrapperRef = useRef<HTMLDivElement>(null);
+  const [isDocumentVisible, setIsDocumentVisible] = useState(false);
+  const [isInViewport, setIsInViewport] = useState(false);
   const sprite = useMemo(createGlowTexture, []);
+  const frameloop = isDocumentVisible && isInViewport ? 'always' : 'never';
 
   useEffect(() => () => sprite.dispose(), [sprite]);
 
-  // Stop the render loop entirely while the tab is hidden.
+  // Stop the render loop unless both the tab and the hero are visible.
   useEffect(() => {
-    const syncVisibility = () =>
-      setFrameloop(document.hidden ? 'never' : 'always');
+    const syncVisibility = () => setIsDocumentVisible(!document.hidden);
     syncVisibility();
     document.addEventListener('visibilitychange', syncVisibility);
     return () =>
       document.removeEventListener('visibilitychange', syncVisibility);
   }, []);
 
+  useEffect(() => {
+    const canvasWrapper = canvasWrapperRef.current;
+    if (!canvasWrapper) {
+      return;
+    }
+
+    if (typeof IntersectionObserver === 'undefined') {
+      setIsInViewport(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(([entry]) => {
+      setIsInViewport(entry?.isIntersecting ?? false);
+    });
+    observer.observe(canvasWrapper);
+
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <Canvas
-      camera={{ fov: 42, position: [0, 0.15, 6.3] }}
-      dpr={[1, 2]}
-      frameloop={frameloop}
-      gl={{
-        alpha: true,
-        antialias: false,
-        powerPreference: 'high-performance',
-      }}
-      onCreated={({ gl }) => {
-        gl.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      }}
-    >
-      <color args={['#0a0a0c']} attach="background" />
-      <ParallaxRig />
-      <AgentCore sprite={sprite} />
-      {ORBIT_STREAMS.map((config) => (
-        <OrbitStream config={config} key={config.color} sprite={sprite} />
-      ))}
-      <DustField sprite={sprite} />
-      <EffectComposer multisampling={0}>
-        <Bloom
-          intensity={1.2}
-          luminanceSmoothing={0.3}
-          luminanceThreshold={0.16}
-          mipmapBlur
-        />
-      </EffectComposer>
-    </Canvas>
+    <div className="absolute inset-0" ref={canvasWrapperRef}>
+      <Canvas
+        camera={{ fov: 42, position: [0, 0.15, 6.3] }}
+        dpr={[1, 2]}
+        fallback={<HeroFallback />}
+        frameloop={frameloop}
+        gl={{
+          alpha: true,
+          antialias: false,
+          powerPreference: 'high-performance',
+        }}
+        onCreated={({ gl }) => {
+          gl.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        }}
+      >
+        <color args={['#0a0a0c']} attach="background" />
+        <ParallaxRig />
+        <AgentCore sprite={sprite} />
+        {ORBIT_STREAMS.map((config) => (
+          <OrbitStream config={config} key={config.color} sprite={sprite} />
+        ))}
+        <DustField sprite={sprite} />
+        <EffectComposer multisampling={0}>
+          <Bloom
+            intensity={1.2}
+            luminanceSmoothing={0.3}
+            luminanceThreshold={0.16}
+            mipmapBlur
+          />
+        </EffectComposer>
+      </Canvas>
+    </div>
   );
 }

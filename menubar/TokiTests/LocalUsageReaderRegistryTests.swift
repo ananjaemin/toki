@@ -18,6 +18,7 @@ final class LocalUsageReaderRegistryTests: XCTestCase {
                 "Cursor",
                 "Gemini CLI",
                 "OMO",
+                "OMP",
                 "GJC",
                 "OpenCode",
                 "OpenClaw",
@@ -48,6 +49,14 @@ final class LocalUsageReaderRegistryTests: XCTestCase {
                 "/tmp/toki-reader-home/.pi/profiles",
                 "/tmp/toki-xdg-data/senpi/sessions",
                 "/tmp/toki-xdg-data/senpi/profiles",
+            ])
+        XCTAssertEqual(
+            paths.ompSessionDirectories.map(\.path),
+            [
+                "/tmp/toki-reader-home/.omp/agent/sessions",
+                "/tmp/toki-reader-home/.omp/profiles",
+                "/tmp/toki-xdg-data/omp/sessions",
+                "/tmp/toki-xdg-data/omp/profiles",
             ])
         XCTAssertEqual(paths.agentCacheDirectory.path, "/tmp/toki-xdg-state/toki-agent")
         #if os(Linux)

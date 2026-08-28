@@ -68,6 +68,7 @@ final class AgentSnapshotBuilderTests: XCTestCase {
                 "Cursor",
                 "Gemini CLI",
                 "OMO",
+                "OMP",
                 "GJC",
                 "OpenCode",
                 "OpenClaw",
@@ -595,6 +596,5 @@ struct FixedTokenReader: TokenReader {
 }
 
 private enum AgentSnapshotFixtureError: Error {
-    case date
-    case sqlite
+    case date, sqlite
 }

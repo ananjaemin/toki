@@ -14,20 +14,11 @@ public struct OMOReader: TokenReader {
     }
 
     public func readUsage(from startDate: Date, to endDate: Date) async throws -> RawTokenUsage {
-        var result = RawTokenUsage()
-
-        for directory in sessionDirectories where FileManager.default.fileExists(atPath: directory.path) {
-            let files = findFiles(in: directory, withExtension: "jsonl", modifiedAfter: startDate)
-            for file in files {
-                result += Self.usage(
-                    fromJSONLLines: readJSONLLines(at: file),
-                    streamID: file.path,
-                    from: startDate,
-                    to: endDate)
-            }
-        }
-
-        return result
+        readPiSessionUsage(
+            in: sessionDirectories,
+            sourceName: Self.sourceName,
+            from: startDate,
+            to: endDate)
     }
 
     static func usage(
@@ -42,4 +33,26 @@ public struct OMOReader: TokenReader {
             to: endDate,
             sourceName: sourceName)
     }
+}
+
+func readPiSessionUsage(
+    in sessionDirectories: [URL],
+    sourceName: String,
+    from startDate: Date,
+    to endDate: Date) -> RawTokenUsage {
+    var result = RawTokenUsage()
+
+    for directory in sessionDirectories where FileManager.default.fileExists(atPath: directory.path) {
+        let files = findFiles(in: directory, withExtension: "jsonl", modifiedAfter: startDate)
+        for file in files {
+            result += GJCReader.usage(
+                fromJSONLLines: readJSONLLines(at: file),
+                streamID: file.path,
+                from: startDate,
+                to: endDate,
+                sourceName: sourceName)
+        }
+    }
+
+    return result
 }

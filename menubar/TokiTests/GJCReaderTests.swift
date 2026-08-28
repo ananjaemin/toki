@@ -168,6 +168,44 @@ final class OMOReaderTests: XCTestCase {
     }
 }
 
+final class OMPReaderTests: XCTestCase {
+    func test_ompReader_readsPiFamilyUsageAsIndependentSource() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("OMPReaderTests-\(UUID().uuidString)")
+        let sessionDirectory = root.appendingPathComponent("encoded-cwd")
+        let sessionFile = sessionDirectory.appendingPathComponent("session.jsonl")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: sessionDirectory, withIntermediateDirectories: true)
+        let lines = [
+            gjcSessionLine(
+                id: "omp-session",
+                cwd: "/tmp/omp-project",
+                timestamp: "2026-08-28T08:00:00Z"),
+            gjcAssistantLine(
+                timestamp: "2026-08-28T09:00:00Z",
+                model: "claude-opus-4",
+                input: 200,
+                output: 60,
+                cost: 0.02),
+        ]
+        try Data(lines.joined(separator: "\n").utf8).write(to: sessionFile)
+        try FileManager.default.setAttributes(
+            [.modificationDate: tokiTestISODate("2026-08-28T10:00:00Z")],
+            ofItemAtPath: sessionFile.path)
+
+        let usage = try await OMPReader(sessionDirectoriesOverride: [root]).readUsage(
+            from: tokiTestISODate("2026-08-28T00:00:00Z"),
+            to: tokiTestISODate("2026-08-29T00:00:00Z"))
+
+        XCTAssertEqual(usage.totalTokens, 260)
+        XCTAssertEqual(usage.cost, 0.02, accuracy: 0.000001)
+        XCTAssertEqual(usage.perModel["claude-opus-4"]?.sources, ["OMP"])
+        XCTAssertEqual(usage.tokenEvents.first?.source, "OMP")
+        XCTAssertEqual(usage.tokenEvents.first?.attribution?.sessionID, "omp-session")
+        XCTAssertEqual(usage.tokenEvents.first?.attribution?.projectPath, "/tmp/omp-project")
+    }
+}
+
 private func gjcSessionLine(
     id: String = "session-123",
     cwd: String = "/Users/example/Toki",

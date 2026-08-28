@@ -116,6 +116,15 @@ public struct LocalUsageReaderPaths: Equatable {
         ]
     }
 
+    public var ompSessionDirectories: [URL] {
+        [
+            homeDirectory.appendingPathComponent(".omp/agent/sessions"),
+            homeDirectory.appendingPathComponent(".omp/profiles"),
+            xdgDataDirectory.appendingPathComponent("omp/sessions"),
+            xdgDataDirectory.appendingPathComponent("omp/profiles"),
+        ]
+    }
+
     public var openCodeDatabase: URL {
         xdgDataDirectory.appendingPathComponent("opencode/opencode.db")
     }
@@ -221,6 +230,11 @@ public enum LocalUsageReaderRegistry {
             LocalUsageReaderDescriptor(
                 reader: OMOReader(sessionDirectoriesOverride: paths.omoSessionDirectories),
                 sourceLocations: paths.omoSessionDirectories.map {
+                    .directory($0, extensions: ["jsonl"])
+                }),
+            LocalUsageReaderDescriptor(
+                reader: OMPReader(sessionDirectoriesOverride: paths.ompSessionDirectories),
+                sourceLocations: paths.ompSessionDirectories.map {
                     .directory($0, extensions: ["jsonl"])
                 }),
             LocalUsageReaderDescriptor(

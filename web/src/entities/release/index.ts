@@ -1,1 +1,9 @@
-export type { GitHubRelease, GitHubReleaseAsset } from './model/types';
+export {
+  getTokiReleaseData,
+  RELEASES_REVALIDATE_SECONDS,
+} from './api/get-toki-releases';
+export type {
+  TokiRelease,
+  TokiReleaseAsset,
+  TokiReleaseData,
+} from './model/types';

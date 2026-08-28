@@ -1,16 +1,20 @@
-export type GitHubReleaseAsset = {
-  id: number;
-  name: string;
-  browser_download_url: string;
-  content_type: string;
+export type TokiReleaseAsset = Readonly<{
+  downloadCount: number;
+  downloadUrl: string;
   size: number;
-};
+}>;
 
-export type GitHubRelease = {
-  id: number;
-  tag_name: string;
+export type TokiRelease = Readonly<{
+  asset: TokiReleaseAsset | null;
   name: string | null;
-  html_url: string;
-  published_at: string | null;
-  assets: GitHubReleaseAsset[];
-};
+  notes: string;
+  publishedAt: string | null;
+  releaseUrl: string;
+  tagName: string;
+}>;
+
+export type TokiReleaseData = Readonly<{
+  isFallback: boolean;
+  latest: TokiRelease;
+  releases: readonly TokiRelease[];
+}>;

@@ -279,7 +279,10 @@ export function AgentsScene() {
   }, []);
 
   return (
-    <div className="absolute inset-0" ref={canvasWrapperRef}>
+    <div
+      className="absolute inset-0 [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,black_20%,transparent_82%)] [-webkit-mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,black_20%,transparent_82%)]"
+      ref={canvasWrapperRef}
+    >
       <Canvas
         camera={{ fov: 42, position: [0, 0.15, 6.3] }}
         dpr={[1, 2]}
@@ -291,6 +294,7 @@ export function AgentsScene() {
           powerPreference: 'high-performance',
         }}
         onCreated={({ gl }) => {
+          gl.setClearColor(0x0a0a0c, 0);
           gl.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         }}
       >

@@ -28,12 +28,42 @@ export function PrivacyPanel() {
             className="grid aspect-square w-[8.25rem] place-items-center justify-self-center rounded-full border border-[rgba(136,112,240,0.3)] bg-[rgba(136,112,240,0.05)] shadow-[inset_0_0_50px_rgba(136,112,240,0.09),0_0_80px_rgba(136,112,240,0.09)] lg:w-[13.75rem] lg:justify-self-end"
           >
             <svg
-              className="w-12 fill-none stroke-toki-purple stroke-[1.25] lg:w-[4.3125rem]"
+              className="w-[3.6rem] fill-none lg:w-[5.25rem]"
               role="presentation"
               viewBox="0 0 80 80"
             >
-              <path d="M40 10 60 18v17c0 15-8.5 27-20 34-11.5-7-20-19-20-34V18l20-8Z" />
-              <path d="M31 40l6 6 13-14" />
+              <defs>
+                <linearGradient
+                  gradientUnits="userSpaceOnUse"
+                  id="privacy-device"
+                  x1="18"
+                  x2="62"
+                  y1="24"
+                  y2="56"
+                >
+                  <stop stopColor="#bcaaff" />
+                  <stop offset="1" stopColor="#7a63e8" />
+                </linearGradient>
+              </defs>
+              <rect
+                fill="rgba(136,112,240,0.12)"
+                height="26"
+                rx="4"
+                stroke="url(#privacy-device)"
+                strokeWidth="1.8"
+                width="40"
+                x="20"
+                y="24"
+              />
+              <path
+                d="M14 56h52"
+                stroke="url(#privacy-device)"
+                strokeLinecap="round"
+                strokeWidth="2.2"
+              />
+              <circle cx="34" cy="37" fill="#a894ff" r="2.6" />
+              <circle cx="42" cy="37" fill="#efeaff" r="2.6" />
+              <circle cx="50" cy="37" fill="#7f6ae0" r="2.6" />
             </svg>
           </div>
         </Reveal>

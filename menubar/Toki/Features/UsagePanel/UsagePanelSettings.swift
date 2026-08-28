@@ -12,6 +12,7 @@ final class UsagePanelSettings: ObservableObject {
         "Hermes",
         "Cursor",
         "Gemini CLI",
+        "OMO",
         "GJC",
         "OpenCode",
         "OpenClaw",

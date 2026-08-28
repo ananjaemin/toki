@@ -67,6 +67,7 @@ final class AgentSnapshotBuilderTests: XCTestCase {
                 "Hermes",
                 "Cursor",
                 "Gemini CLI",
+                "OMO",
                 "GJC",
                 "OpenCode",
                 "OpenClaw",

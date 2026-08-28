@@ -505,6 +505,7 @@ extension AgentConfigurationAndDiagnosticsTests {
                 "Hermes",
                 "Cursor",
                 "Gemini CLI",
+                "OMO",
                 "GJC",
                 "OpenCode",
                 "OpenClaw",

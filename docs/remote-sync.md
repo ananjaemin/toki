@@ -6,7 +6,8 @@ has no SSH dependency: the Agent makes outbound HTTPS requests to a Hub, and the
 Hub keeps only the latest encrypted snapshot for each device.
 
 The Linux/macOS collector uses the same local reader registry as the app:
-Claude Code, Codex, Hermes, Cursor, Gemini CLI, GJC, OpenCode, and OpenClaw.
+Claude Code, Codex, Hermes, Cursor, Gemini CLI, OMO (Senpi), GJC, OpenCode,
+and OpenClaw.
 `RemoteUsageReader` is deliberately excluded inside the Agent to prevent sync
 loops and double uploads. Ubuntu and other Swift-supported Linux distributions
 can run it; Linux Cursor uses its XDG configuration database path.

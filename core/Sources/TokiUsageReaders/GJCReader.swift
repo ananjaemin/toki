@@ -37,17 +37,20 @@ public struct GJCReader: TokenReader {
         fromJSONLLines lines: [String],
         streamID: String,
         from startDate: Date,
-        to endDate: Date) -> RawTokenUsage {
+        to endDate: Date,
+        sourceName: String = sourceName) -> RawTokenUsage {
         usage(
             fromJSONLSessions: [(streamID: streamID, lines: lines)],
             from: startDate,
-            to: endDate)
+            to: endDate,
+            sourceName: sourceName)
     }
 
     private static func usage(
         fromJSONLSessions sessions: [(streamID: String, lines: [String])],
         from startDate: Date,
-        to endDate: Date) -> RawTokenUsage {
+        to endDate: Date,
+        sourceName: String) -> RawTokenUsage {
         let decoder = JSONDecoder()
 
         var result = RawTokenUsage()

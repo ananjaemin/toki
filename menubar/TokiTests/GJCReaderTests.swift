@@ -104,6 +104,70 @@ final class GJCReaderTests: XCTestCase {
     }
 }
 
+final class OMOReaderTests: XCTestCase {
+    func test_omoReader_readsNestedSessionFilesFromConfiguredDirectories() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("OMOReaderTests-\(UUID().uuidString)")
+        let sessionDirectory = root.appendingPathComponent("encoded-cwd")
+        let sessionFile = sessionDirectory.appendingPathComponent("session.jsonl")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: sessionDirectory, withIntermediateDirectories: true)
+        let lines = [
+            gjcSessionLine(
+                id: "omo-session",
+                cwd: "/tmp/toki",
+                timestamp: "2026-08-28T08:00:00Z"),
+            gjcAssistantLine(
+                timestamp: "2026-08-28T09:00:00Z",
+                model: "gpt-5.6",
+                input: 120,
+                output: 40),
+        ]
+        try Data(lines.joined(separator: "\n").utf8).write(to: sessionFile)
+        try FileManager.default.setAttributes(
+            [.modificationDate: tokiTestISODate("2026-08-28T10:00:00Z")],
+            ofItemAtPath: sessionFile.path)
+
+        let usage = try await OMOReader(sessionDirectoriesOverride: [root]).readUsage(
+            from: tokiTestISODate("2026-08-28T00:00:00Z"),
+            to: tokiTestISODate("2026-08-29T00:00:00Z"))
+
+        XCTAssertEqual(usage.totalTokens, 160)
+        XCTAssertEqual(usage.tokenEvents.first?.source, "OMO")
+        XCTAssertEqual(usage.tokenEvents.first?.attribution?.sessionID, "omo-session")
+    }
+
+    func test_omoReader_attributesSenpiUsageToOMO() {
+        let usage = OMOReader.usage(
+            fromJSONLLines: [
+                gjcSessionLine(
+                    id: "omo-session",
+                    cwd: "/tmp/toki",
+                    timestamp: "2026-08-28T08:00:00Z"),
+                gjcAssistantLine(
+                    timestamp: "2026-08-28T09:00:00Z",
+                    model: "gpt-5.6",
+                    input: 120,
+                    output: 40,
+                    cacheRead: 30,
+                    cacheWrite: 10,
+                    reasoning: 5,
+                    cost: 0.012),
+            ],
+            streamID: "/tmp/omo-session.jsonl",
+            from: tokiTestISODate("2026-08-28T00:00:00Z"),
+            to: tokiTestISODate("2026-08-29T00:00:00Z"))
+
+        XCTAssertEqual(usage.totalTokens, 200)
+        XCTAssertEqual(usage.reasoningTokens, 5)
+        XCTAssertEqual(usage.cost, 0.012, accuracy: 0.000001)
+        XCTAssertEqual(usage.perModel["gpt-5.6"]?.sources, ["OMO"])
+        XCTAssertEqual(usage.tokenEvents.first?.source, "OMO")
+        XCTAssertEqual(usage.tokenEvents.first?.attribution?.sessionID, "omo-session")
+        XCTAssertEqual(usage.tokenEvents.first?.attribution?.projectPath, "/tmp/toki")
+    }
+}
+
 private func gjcSessionLine(
     id: String = "session-123",
     cwd: String = "/Users/example/Toki",

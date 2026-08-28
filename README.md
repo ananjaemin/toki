@@ -146,6 +146,7 @@ remote service is required for local readers.
 | **Hermes** | `~/.hermes/state.db` | Reads per-session token totals, model, cost, and activity from SQLite. |
 | **Cursor** | `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb` | Exact token rows are counted when present; context-window metrics are shown separately when exact tokens are unavailable. |
 | **Gemini CLI** | `~/.gemini/tmp/*/chats/**/*.json` | Reads current and legacy Gemini chat history formats. |
+| **OMO (Senpi)** | `~/.omo/agent/sessions/**/*.jsonl` plus legacy, profile, and XDG Senpi stores | Reads assistant and delegated task usage from pi-family JSONL sessions with model, cost, project, and session attribution. |
 | **GJC** | `~/.gjc/agent/sessions/**/*.jsonl` | Reads local JSONL sessions, including assistant and delegated task token usage plus recorded cost. |
 | **OpenCode** | `~/.local/share/opencode/opencode.db` | Reads assistant message token rows from SQLite. |
 | **OpenClaw** | `~/.openclaw/agents/**/*.jsonl` | Reads assistant usage records from local agent logs. |

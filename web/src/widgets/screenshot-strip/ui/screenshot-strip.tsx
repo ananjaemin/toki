@@ -53,7 +53,7 @@ export function ScreenshotStrip() {
             ONE MENU-BAR HOME
           </p>
         </Reveal>
-        <RevealGroup className="grid items-end gap-3 md:grid-cols-[1.05fr_0.78fr_0.78fr] md:gap-[1.125rem]">
+        <RevealGroup className="grid items-end gap-3 md:grid-cols-[0.95fr_0.78fr_0.78fr] md:gap-[1.125rem]">
           {SHOTS.map((shot, index) => (
             <RevealItem key={shot.src}>
               <GlassCard

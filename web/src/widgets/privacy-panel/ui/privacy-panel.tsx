@@ -25,7 +25,7 @@ export function PrivacyPanel() {
           </div>
           <div
             aria-hidden="true"
-            className="grid h-[6.75rem] w-40 place-items-center justify-self-start rounded-full border border-[rgba(136,112,240,0.3)] bg-[rgba(136,112,240,0.05)] shadow-[inset_0_0_50px_rgba(136,112,240,0.09),0_0_80px_rgba(136,112,240,0.09)] lg:h-[11.5rem] lg:w-[17rem] lg:justify-self-end"
+            className="grid h-[6.75rem] w-40 place-items-center justify-self-center rounded-full border border-[rgba(136,112,240,0.3)] bg-[rgba(136,112,240,0.05)] shadow-[inset_0_0_50px_rgba(136,112,240,0.09),0_0_80px_rgba(136,112,240,0.09)] lg:h-[11.5rem] lg:w-[17rem] lg:justify-self-end"
           >
             <svg
               className="w-[6.25rem] fill-none stroke-toki-purple stroke-[1.25] lg:w-[9.5rem]"

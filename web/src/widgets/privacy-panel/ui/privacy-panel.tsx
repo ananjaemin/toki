@@ -25,15 +25,19 @@ export function PrivacyPanel() {
           </div>
           <div
             aria-hidden="true"
-            className="grid aspect-square w-[8.25rem] place-items-center justify-self-start rounded-full border border-[rgba(136,112,240,0.3)] bg-[rgba(136,112,240,0.05)] shadow-[inset_0_0_50px_rgba(136,112,240,0.09),0_0_80px_rgba(136,112,240,0.09)] lg:w-[13.75rem] lg:justify-self-end"
+            className="grid h-[6.75rem] w-40 place-items-center justify-self-start rounded-full border border-[rgba(136,112,240,0.3)] bg-[rgba(136,112,240,0.05)] shadow-[inset_0_0_50px_rgba(136,112,240,0.09),0_0_80px_rgba(136,112,240,0.09)] lg:h-[11.5rem] lg:w-[17rem] lg:justify-self-end"
           >
             <svg
-              className="w-12 fill-none stroke-toki-purple stroke-[1.25] lg:w-[4.3125rem]"
+              className="w-[6.25rem] fill-none stroke-toki-purple stroke-[1.25] lg:w-[9.5rem]"
               role="presentation"
-              viewBox="0 0 80 80"
+              viewBox="0 0 120 72"
             >
-              <path d="M40 10 60 18v17c0 15-8.5 27-20 34-11.5-7-20-19-20-34V18l20-8Z" />
-              <path d="M31 40l6 6 13-14" />
+              <path className="opacity-45" d="M9 36h19" />
+              <path className="opacity-45" d="M92 36h19" />
+              <circle className="opacity-45" cx="5" cy="36" r="1.25" />
+              <circle className="opacity-45" cx="115" cy="36" r="1.25" />
+              <path d="M60 14 80 21.5v10.8c0 10.7-8.25 18.2-20 25.2-11.75-7-20-14.5-20-25.2V21.5L60 14Z" />
+              <path d="m50 36.5 5.6 5.4 12.3-12.1" />
             </svg>
           </div>
         </Reveal>
